@@ -1,0 +1,29 @@
+<!-- templates/index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CV Processing Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>CV Processing Tool</h1>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <ul class="flashes">
+              {% for message in messages %}
+                <li>{{ message }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+        <form method="post" enctype="multipart/form-data">
+            <label for="cv_file">Upload your CV (PDF or DOCX):</label>
+            <input type="file" name="cv_file" id="cv_file" accept=".pdf, .docx" required>
+            <button type="submit">Process CV</button>
+        </form>
+    </div>
+</body>
+</html>

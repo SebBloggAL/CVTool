@@ -1,0 +1,17 @@
+<!-- templates/result.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CV Processing Result</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>CV Processed Successfully</h1>
+        <p>Your processed CV is ready for download.</p>
+        <a href="{{ url_for('download_file', filename=filename) }}">Download CV</a>
+    </div>
+</body>
+</html>
