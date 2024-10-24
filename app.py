@@ -9,7 +9,6 @@ from file_handler import validate_file
 from formatter import format_data
 from document_generator import create_document
 from config import OPENAI_API_KEY
-from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
