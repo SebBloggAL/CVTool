@@ -62,6 +62,7 @@ pypandoc==1.11
 pyspellchecker==0.7.1
 python-dateutil==2.8.2
 python-docx==0.8.11
+python-dotenv==1.0.1
 python-magic==0.4.27
 python-pptx==0.6.21
 pytz==2023.3

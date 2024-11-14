@@ -10,8 +10,10 @@ from formatter import format_data
 from document_generator import create_document
 from config import OPENAI_API_KEY
 
+#from dotenv import load_dotenv
+
 # Load environment variables
-load_dotenv()
+#load_dotenv()
 
 # Configuration
 UPLOAD_FOLDER = 'Documents/To_Process'
