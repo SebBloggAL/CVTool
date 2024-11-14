@@ -10,11 +10,6 @@ from formatter import format_data
 from document_generator import create_document
 from config import OPENAI_API_KEY
 
-#from dotenv import load_dotenv
-
-# Load environment variables
-#load_dotenv()
-
 # Configuration
 UPLOAD_FOLDER = 'Documents/To_Process'
 PROCESSED_FOLDER = 'Documents/Processed'
@@ -106,4 +101,4 @@ if __name__ == '__main__':
     os.makedirs(PROCESSED_FOLDER, exist_ok=True)
     
     # Run the Flask app
-    app.run(debug=True, host='0.0.0.0', port=8000)
+    app.run(debug=False, host='0.0.0.0', port=8000)

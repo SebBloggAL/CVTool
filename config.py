@@ -1,14 +1,8 @@
-# config.py
-
 import os
-# from dotenv import load_dotenv
-
-# Load environment variables from .env file
-# load_dotenv()
 
 # Retrieve the OpenAI API key from environment variables
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")  # Ensure correct case-sensitivity
 
-# Optionally, you can handle the case where the API key is not set
-if OPENAI_API_KEY is None:
-    raise ValueError("OpenAI API key not found. Please set OPENAI_API_KEY in your .env file.")
+# Optionally, handle the case where the API key is not set
+if not OPENAI_API_KEY:
+    raise ValueError("OpenAI API key not found. Please set openai_api_key in your environment.")
