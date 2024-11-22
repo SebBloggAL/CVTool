@@ -101,7 +101,7 @@ Output only the JSON object, without any markdown formatting or additional text.
 Do not include any code block syntax, such as backticks, explanations, or apologies.
 Ensure the JSON is complete, valid, and parsable by standard JSON parsers.
 Use double quotes for all keys and string values.
-The response should start with a curly brace { and end with a curly brace }.
+The response should start with a curly brace "{" and end with a curly brace "}".
 Avoid using backticks in your response.
 Avoid using the American spelling of words; prioritise English spelling.
 Content Exclusions:
