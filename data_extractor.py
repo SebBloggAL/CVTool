@@ -108,6 +108,7 @@ CV Text:
 {text}
 """
 
+
     response_text = call_openai_api(prompt_experience, max_tokens=3000, call_type="Experience & Education Extraction")
     data_experience = parse_json_response(response_text)
     return data_experience
