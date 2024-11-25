@@ -42,24 +42,31 @@ def extract_basic_info(text):
     prompt_basic = f"""
 You are an AI assistant that extracts specific information from resumes.
 
-Extract the following information from the CV text provided and return it in valid JSON format:
+**Task:**
 
-- Applicant's Name
-- Role (current or desired)
-- Security Clearance (if any)
-- Summary (a brief personal statement)
-- Skills
+Extract the following information from the CV text provided and return it in valid JSON format. For each item, **copy the text exactly as it appears in the CV**, without paraphrasing, summarizing, or omitting any details.
 
-Instructions:
+- **Applicant's Name**: Copy the exact name as it appears in the CV.
+- **Role** (current or desired): Copy the exact role as stated in the CV.
+- **Security Clearance** (if any): Copy the exact security clearance details.
+- **Summary** (a brief personal statement): Copy the summary exactly as it appears.
+- **Skills**: Copy the skills exactly as listed in the CV.
 
-- Output only the JSON object, without any markdown formatting or additional text.
-- Do not include any code block syntax, such as backticks, explanations, or apologies.
-- Ensure the JSON is complete, valid, and parsable by standard JSON parsers.
-- Use double quotes for all keys and string values.
-- The response should start with a curly brace "{" and end with a curly brace "}".
-- Avoid using backticks in your response.
+**Instructions:**
 
-CV Text:
+- **Use Exact Wording**: Include all relevant information using the exact wording from the CV text. **Do not rephrase, summarize, or omit any information.**
+- **Do Not Add or Infer Information**: Only include information explicitly stated in the CV text.
+- **Handle Missing Information**: If certain information is not available in the CV text, omit that field from the JSON output.
+- **Formatting Guidelines**:
+    - Output only the JSON object, without any markdown formatting or additional text.
+    - Do not include any code block syntax, such as backticks, explanations, or apologies.
+    - Ensure the JSON is complete, valid, and parsable by standard JSON parsers.
+    - Use double quotes for all keys and string values.
+    - The response should start with a curly brace "{{" and end with a curly brace "}}".
+    - Avoid using backticks in your response.
+    - Avoid using the American spelling of words; prioritise English spelling.
+
+**CV Text:**
 {text}
 """
 
