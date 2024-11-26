@@ -24,7 +24,7 @@ def set_document_font(doc):
 
 def set_heading_style(doc):
     """
-    Creates or modifies a style named 'Style 1' for headings with size 16 pt, amber color, and underlined.
+    Creates or modifies a style named 'Style 1' for headings with size 16 pt, amber color, bold, and underlined.
     """
     styles = doc.styles
     try:
@@ -37,7 +37,7 @@ def set_heading_style(doc):
     font.size = Pt(16)
     font.color.rgb = RGBColor(226, 106, 35)  # Amber color
     font.bold = True
-    font.underline = True  # Add this line to underline the headings
+    font.underline = True  # Underline the headings
     font.element.rPr.rFonts.set(qn('w:eastAsia'), 'Calibri')
 
     # Ensure paragraph formatting is consistent
@@ -83,7 +83,7 @@ def apply_run_font_style(run, paragraph, is_applicant_name=False):
     font.name = 'Calibri'
     if paragraph.style.name == 'Style 1':
         font.size = Pt(16)
-        font.underline = True  # Ensure underlining for headings
+        font.underline = True  # Ensure headings are underlined
     elif is_applicant_name:
         font.size = Pt(20)
     else:
@@ -171,7 +171,7 @@ def replace_headers(doc):
             font.name = 'Calibri'
             font.size = Pt(16)
             font.bold = True
-            font.underline = True  # Add this line to underline the heading
+            font.underline = True  # Underline the headings
             font.color.rgb = RGBColor(226, 106, 35)  # Amber color
             font.element.rPr.rFonts.set(qn('w:eastAsia'), 'Calibri')
 
@@ -190,7 +190,13 @@ def replace_placeholders_in_cell(cell, placeholders, data):
     Replaces placeholders in a single cell and sets font and language for all runs.
     """
     for paragraph in cell.paragraphs:
-        if '{Experience}' in paragraph.text:
+        if '{Skills}' in paragraph.text:
+            # Insert the skills section here
+            insert_skills_section(paragraph, data.get('Skills', []))
+            # Remove the placeholder paragraph
+            p_element = paragraph._element
+            p_element.getparent().remove(p_element)
+        elif '{Experience}' in paragraph.text:
             # Insert the experience section here
             insert_experience_section(paragraph, data.get('Experience', []))
             # Remove the placeholder paragraph
@@ -229,6 +235,9 @@ def set_font_for_all_text(doc, placeholders):
                         apply_run_font_style(run, paragraph, is_applicant_name=is_applicant_name)
 
 def set_list_bullet_style(doc):
+    """
+    Defines the 'List Bullet' style if it doesn't exist.
+    """
     styles = doc.styles
     if 'List Bullet' not in styles:
         list_bullet_style = styles.add_style('List Bullet', WD_STYLE_TYPE.PARAGRAPH)
@@ -282,6 +291,23 @@ def convert_lines_to_bullets(paragraph):
         if text.startswith('-') or text.startswith('•') or text.startswith('*'):
             paragraph.text = text.lstrip('-•*').strip()  # Remove bullet characters
             paragraph.style = 'List Bullet'
+
+def insert_skills_section(paragraph, skills_data):
+    """
+    Inserts the skills section into the document at the position of the given paragraph.
+    """
+    prev_paragraph = paragraph
+    if not skills_data:
+        logging.warning("No skills data provided.")
+        return
+
+    for skill in skills_data:
+        bullet_paragraph = insert_paragraph_after(prev_paragraph, skill, style='List Bullet')
+        apply_run_font_style(bullet_paragraph.runs[0], bullet_paragraph)
+        prev_paragraph = bullet_paragraph
+
+    # Add a blank paragraph for spacing
+    blank_paragraph = insert_paragraph_after(prev_paragraph, '')
 
 def insert_experience_section(paragraph, experience_data):
     """
@@ -361,23 +387,30 @@ def create_document(data, output_path):
     set_styles_language(doc)  # Set language for all styles
     set_list_bullet_style(doc)
 
-    # Prepare placeholders, remove 'Experience' since we'll handle it separately
+    # Prepare placeholders, remove 'Skills' and 'Experience' since we'll handle them separately
     placeholders = {
         "{ApplicantName}": data.get("ApplicantName", ""),
         "{Role}": data.get("Role", ""),
         "{SecurityClearance}": data.get("SecurityClearance", "Not specified"),
         "{Summary}": data.get("Summary", ""),
-        "{Skills}": data.get("Skills", ""),
-        # "{Experience}": data.get("Experience", ""),  # Removed this line
+        # "{Skills}": data.get("Skills", ""),  # Removed this line
+        # "{Experience}": data.get("Experience", ""),  # Already removed
         "{Education}": data.get("Education", "")
     }
 
     logging.info("Starting placeholder replacement.")
+    logging.debug(f"Skills data in create_document: {data.get('Skills', [])}")
     logging.debug(f"Experience data in create_document: {data.get('Experience', [])}")
 
     # Replace placeholders in paragraphs
     for paragraph in doc.paragraphs:
-        if '{Experience}' in paragraph.text:
+        if '{Skills}' in paragraph.text:
+            # Insert the skills section here
+            insert_skills_section(paragraph, data.get('Skills', []))
+            # Remove the placeholder paragraph
+            p_element = paragraph._element
+            p_element.getparent().remove(p_element)
+        elif '{Experience}' in paragraph.text:
             # Insert the experience section here
             insert_experience_section(paragraph, data.get('Experience', []))
             # Remove the placeholder paragraph
