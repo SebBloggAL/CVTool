@@ -312,10 +312,14 @@ def insert_skills_section(paragraph, skills_data, num_columns=3):
     table_paragraph = insert_paragraph_after(paragraph)
 
     # Create a table with num_rows rows and num_columns columns
-    table = table_paragraph._parent.add_table(rows=num_rows, cols=num_columns, width=Inches(6))
+    table = table_paragraph._parent.add_table(rows=num_rows, cols=num_columns)
 
     # Set table alignment to left
     table.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+
+    # Set the column widths
+    for column in table.columns:
+        column.width = Inches(2)  # Adjust the width as needed
 
     # Distribute the skills into the table cells
     skill_index = 0
