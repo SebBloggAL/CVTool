@@ -24,7 +24,7 @@ def set_document_font(doc):
 
 def set_heading_style(doc):
     """
-    Creates or modifies a style named 'Style 1' for headings with size 16 pt and amber color.
+    Creates or modifies a style named 'Style 1' for headings with size 16 pt, amber color, and underlined.
     """
     styles = doc.styles
     try:
@@ -37,6 +37,7 @@ def set_heading_style(doc):
     font.size = Pt(16)
     font.color.rgb = RGBColor(226, 106, 35)  # Amber color
     font.bold = True
+    font.underline = True  # Add this line to underline the headings
     font.element.rPr.rFonts.set(qn('w:eastAsia'), 'Calibri')
 
     # Ensure paragraph formatting is consistent
@@ -82,6 +83,7 @@ def apply_run_font_style(run, paragraph, is_applicant_name=False):
     font.name = 'Calibri'
     if paragraph.style.name == 'Style 1':
         font.size = Pt(16)
+        font.underline = True  # Ensure underlining for headings
     elif is_applicant_name:
         font.size = Pt(20)
     else:
@@ -169,6 +171,7 @@ def replace_headers(doc):
             font.name = 'Calibri'
             font.size = Pt(16)
             font.bold = True
+            font.underline = True  # Add this line to underline the heading
             font.color.rgb = RGBColor(226, 106, 35)  # Amber color
             font.element.rPr.rFonts.set(qn('w:eastAsia'), 'Calibri')
 
