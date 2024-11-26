@@ -225,6 +225,46 @@ def set_font_for_all_text(doc, placeholders):
                         is_applicant_name = run.text == placeholders.get("{ApplicantName}", "")
                         apply_run_font_style(run, paragraph, is_applicant_name=is_applicant_name)
 
+def set_list_bullet_style(doc):
+    styles = doc.styles
+    if 'List Bullet' not in styles:
+        list_bullet_style = styles.add_style('List Bullet', WD_STYLE_TYPE.PARAGRAPH)
+        list_bullet_style.base_style = styles['List Paragraph']
+        list_bullet_style.paragraph_format.left_indent = Pt(12)
+        list_bullet_style.paragraph_format.first_line_indent = Pt(-12)
+        list_bullet_style.paragraph_format.space_after = Pt(0)
+        list_bullet_style.paragraph_format.space_before = Pt(0)
+
+def convert_lines_to_bullets(paragraph):
+    """
+    Converts lines in a paragraph that should be bullet points into separate paragraphs with bullet style.
+    """
+    lines = paragraph.text.split('\n')
+    if len(lines) > 1:
+        # Remove the original paragraph
+        p = paragraph._element
+        p.getparent().remove(p)
+        
+        # Insert new paragraphs
+        for line in lines:
+            if line.strip() == '':
+                continue  # Skip empty lines
+            new_para = paragraph._document.add_paragraph(line.strip())
+            if line.startswith('•') or line.startswith('*'):
+                new_para.style = 'List Bullet'
+                # Remove the bullet character if present
+                if line[0] in ['•', '*']:
+                    new_para.text = line[1:].strip()
+            else:
+                new_para.style = paragraph.style
+    else:
+        # If the paragraph is a single line starting with bullet character
+        if paragraph.text.strip().startswith('•') or paragraph.text.strip().startswith('*'):
+            paragraph.style = 'List Bullet'
+            # Remove the bullet character
+            paragraph.text = paragraph.text.strip()[1:].strip()
+
+
 def create_document(data, output_path):
     """
     Creates a Word document using the template and fills it with the extracted data.
@@ -252,7 +292,8 @@ def create_document(data, output_path):
     set_heading_style(doc)
     set_document_defaults_language(doc)  # Set document-wide default language
     set_styles_language(doc)  # Set language for all styles
-
+    set_list_bullet_style(doc)
+    
     # Prepare placeholders
     placeholders = {
         "{ApplicantName}": data.get("ApplicantName", ""),
@@ -269,11 +310,13 @@ def create_document(data, output_path):
     # Replace placeholders in paragraphs
     for paragraph in doc.paragraphs:
         replace_placeholders_in_paragraph(paragraph, placeholders)
+        convert_lines_to_bullets(paragraph)
 
     # Replace placeholders in tables
     for table in doc.tables:
         replace_placeholders_in_table(table, placeholders)
-
+        convert_lines_to_bullets(paragraph)
+    
     # Replace header placeholders and apply 'Style 1'
     replace_headers(doc)
 
