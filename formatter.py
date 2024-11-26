@@ -24,10 +24,20 @@ def format_data(raw_data):
     logging.debug(f"Formatted data: {formatted_data}")
     return formatted_data
 
-def format_skills(skills_list):
-    if isinstance(skills_list, list):
-        return ', '.join(skills_list)
-    return skills_list  # In case it's already a string
+def format_skills(skills_data):
+    """
+    Formats the skills data, returning it as a list of skills.
+    """
+    if isinstance(skills_data, list):
+        return [skill.strip() for skill in skills_data if skill.strip()]
+    elif isinstance(skills_data, str):
+        # Split the string by commas or newlines and strip whitespace
+        skills_list = [skill.strip() for skill in skills_data.replace('\n', ',').split(',') if skill.strip()]
+        return skills_list
+    else:
+        logging.warning("Unexpected format for skills data.")
+        return []
+
 
 def format_experience(experience_data):
     """
