@@ -104,6 +104,7 @@ def extract_experience_education(text):
     Do Not Add or Infer Information: Only include information explicitly stated in the CV text.
     Handle Missing Information: If certain information is not available in the CV text, omit that field from the JSON output.
     Formatting Guidelines:
+    Turn paragraphs into bullet points, changing **ONLY** format, not content
     Output only the JSON object, without any markdown formatting or additional text.
     Do not include any code block syntax, such as backticks, explanations, or apologies.
     Ensure the JSON is complete, valid, and parsable by standard JSON parsers.
