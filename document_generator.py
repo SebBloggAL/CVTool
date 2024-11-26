@@ -7,6 +7,8 @@ from docx.shared import Pt, RGBColor
 from docx.oxml.ns import qn
 from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.text.paragraph import Paragraph
 import docx
 import docx.oxml
 
@@ -98,7 +100,7 @@ def apply_run_font_style(run, paragraph, is_applicant_name=False):
 
 def replace_placeholders_in_paragraph(paragraph, placeholders):
     """
-    Replaces placeholders in a paragraph with actual data and adjusts bullet point alignment.
+    Replaces placeholders in a paragraph with actual data.
     """
     # Combine all run texts to handle placeholders split across runs
     full_text = ''.join(run.text for run in paragraph.runs)
@@ -134,12 +136,6 @@ def replace_placeholders_in_paragraph(paragraph, placeholders):
             # Add a new run with the replaced text
             new_run = paragraph.add_run(full_text)
             apply_run_font_style(new_run, paragraph)
-
-    # Adjust bullet point alignment
-    if paragraph.text.strip().startswith('-'):
-        paragraph.paragraph_format.left_indent = Pt(0)  # No indentation
-        paragraph.paragraph_format.first_line_indent = Pt(-12)  # Adjust as needed
-        paragraph.paragraph_format.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
 def replace_headers(doc):
     """
@@ -192,10 +188,7 @@ def replace_placeholders_in_cell(cell, placeholders):
     """
     for paragraph in cell.paragraphs:
         replace_placeholders_in_paragraph(paragraph, placeholders)
-        # Set font and language for each run in the paragraph
-        for run in paragraph.runs:
-            is_applicant_name = run.text == placeholders.get("{ApplicantName}", "")
-            apply_run_font_style(run, paragraph, is_applicant_name=is_applicant_name)
+        convert_lines_to_bullets(paragraph)
 
     for nested_table in cell.tables:
         replace_placeholders_in_table(nested_table, placeholders)
@@ -235,37 +228,50 @@ def set_list_bullet_style(doc):
         list_bullet_style.paragraph_format.space_after = Pt(0)
         list_bullet_style.paragraph_format.space_before = Pt(0)
 
+def insert_paragraph_after(paragraph, text='', style=None):
+    """Insert a new paragraph after the given paragraph."""
+    new_p = OxmlElement('w:p')
+    paragraph._element.addnext(new_p)
+    new_paragraph = Paragraph(new_p, paragraph._parent)
+    if text:
+        new_run = new_paragraph.add_run(text)
+    if style is not None:
+        new_paragraph.style = style
+    return new_paragraph
+
 def convert_lines_to_bullets(paragraph):
     """
-    Splits a paragraph into multiple paragraphs, applying bullet points where necessary.
+    Converts lines in a paragraph that should be bullet points into separate paragraphs with bullet style.
     """
-    # Get the parent of the paragraph (e.g., Document, Cell)
-    parent = paragraph._parent
-    # Find the index of the current paragraph within its parent
-    index = parent.paragraphs.index(paragraph)
-
-    # Split the paragraph text into lines
     lines = paragraph.text.split('\n')
-    # Remove the original paragraph
-    p_element = paragraph._element
-    p_element.getparent().remove(p_element)
+    if len(lines) > 1:
+        # Store the original style
+        original_style = paragraph.style
 
-    # Insert new paragraphs at the correct position
-    for i, line in enumerate(lines):
-        line = line.strip()
-        if not line:
-            continue
-        # Determine the style for the new paragraph
-        if line.startswith('•') or line.startswith('*'):
-            line = line[1:].strip()
-            style = 'List Bullet'
-        else:
-            style = paragraph.style
+        # Remove the original paragraph's text
+        paragraph.text = ''
 
-        new_p = parent.add_paragraph(line, style=style)
-        # Insert the new paragraph at the original position + offset
-        parent._body._body.insert(index + i, new_p._element)
+        prev_paragraph = paragraph
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue  # Skip empty lines
+            # Determine the style for the new paragraph
+            if line.startswith('-') or line.startswith('•') or line.startswith('*'):
+                line = line.lstrip('-•*').strip()  # Remove bullet characters
+                style = 'List Bullet'
+            else:
+                style = original_style
 
+            # Insert new paragraph after the previous one
+            new_para = insert_paragraph_after(prev_paragraph, text=line, style=style)
+            prev_paragraph = new_para
+    else:
+        # If the paragraph is a single line starting with a bullet character
+        text = paragraph.text.strip()
+        if text.startswith('-') or text.startswith('•') or text.startswith('*'):
+            paragraph.text = text.lstrip('-•*').strip()  # Remove bullet characters
+            paragraph.style = 'List Bullet'
 
 def create_document(data, output_path):
     """
@@ -295,7 +301,7 @@ def create_document(data, output_path):
     set_document_defaults_language(doc)  # Set document-wide default language
     set_styles_language(doc)  # Set language for all styles
     set_list_bullet_style(doc)
-    
+
     # Prepare placeholders
     placeholders = {
         "{ApplicantName}": data.get("ApplicantName", ""),
@@ -317,8 +323,7 @@ def create_document(data, output_path):
     # Replace placeholders in tables
     for table in doc.tables:
         replace_placeholders_in_table(table, placeholders)
-        convert_lines_to_bullets(paragraph)
-    
+
     # Replace header placeholders and apply 'Style 1'
     replace_headers(doc)
 
