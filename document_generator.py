@@ -188,11 +188,11 @@ def replace_placeholders_in_cell(cell, placeholders, data):
     """
     for paragraph in cell.paragraphs:
         if '{Experience}' in paragraph.text:
+            # Insert the experience section here
+            insert_experience_section(paragraph, data.get('Experience', []))
             # Remove the placeholder paragraph
             p_element = paragraph._element
             p_element.getparent().remove(p_element)
-            # Insert the experience section here
-            insert_experience_section(paragraph, data.get('Experience', []))
         else:
             replace_placeholders_in_paragraph(paragraph, placeholders)
             convert_lines_to_bullets(paragraph)
@@ -286,13 +286,25 @@ def insert_experience_section(paragraph, experience_data):
     """
     prev_paragraph = paragraph
     for item in experience_data:
+        logging.debug(f"Inserting experience item: {item}")
         position = item.get("Position", "")
         company = item.get("Company", "")
         duration = item.get("Duration", "")
         responsibilities = item.get("Responsibilities", [])
 
+        # Skip if essential fields are missing
+        if not position and not company:
+            logging.warning("Experience item missing 'Position' and 'Company'; skipping.")
+            continue
+
         # Create the role title with bold formatting
-        role_title = f"{position} at {company} ({duration})"
+        role_title_parts = [position]
+        if company:
+            role_title_parts.append(f"at {company}")
+        if duration:
+            role_title_parts.append(f"({duration})")
+        role_title = ' '.join(role_title_parts)
+
         role_paragraph = insert_paragraph_after(prev_paragraph, '')
         role_paragraph.style = 'Normal'
         role_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
@@ -353,20 +365,21 @@ def create_document(data, output_path):
         "{SecurityClearance}": data.get("SecurityClearance", "Not specified"),
         "{Summary}": data.get("Summary", ""),
         "{Skills}": data.get("Skills", ""),
-        # "{Experience}": data.get("Experience", ""),  # Remove this line
+        # "{Experience}": data.get("Experience", ""),  # Removed this line
         "{Education}": data.get("Education", "")
     }
 
     logging.info("Starting placeholder replacement.")
+    logging.debug(f"Experience data in create_document: {data.get('Experience', [])}")
 
     # Replace placeholders in paragraphs
     for paragraph in doc.paragraphs:
         if '{Experience}' in paragraph.text:
+            # Insert the experience section here
+            insert_experience_section(paragraph, data.get('Experience', []))
             # Remove the placeholder paragraph
             p_element = paragraph._element
             p_element.getparent().remove(p_element)
-            # Insert the experience section here
-            insert_experience_section(paragraph, data.get('Experience', []))
         else:
             replace_placeholders_in_paragraph(paragraph, placeholders)
             convert_lines_to_bullets(paragraph)
