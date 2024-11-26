@@ -3,7 +3,7 @@
 import os
 import logging
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt, RGBColor, Inches
 from docx.oxml.ns import qn
 from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
@@ -308,9 +308,11 @@ def insert_skills_section(paragraph, skills_data, num_columns=3):
     num_skills = len(skills_data)
     num_rows = (num_skills + num_columns - 1) // num_columns  # Ceiling division
 
+    # Insert a new paragraph after the current one to anchor the table
+    table_paragraph = insert_paragraph_after(paragraph)
+
     # Create a table with num_rows rows and num_columns columns
-    table = paragraph._parent.add_table(rows=num_rows, cols=num_columns)
-    table.style = 'Table Grid'  # You can set a different style or customize as needed
+    table = table_paragraph._parent.add_table(rows=num_rows, cols=num_columns, width=Inches(6))
 
     # Set table alignment to left
     table.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
