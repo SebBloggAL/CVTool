@@ -39,6 +39,7 @@ def format_skills(skills_data):
         return []
 
 
+
 def format_experience(experience_data):
     """
     Formats the experience data, returning it as a list of dictionaries.
