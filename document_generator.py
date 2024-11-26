@@ -192,10 +192,8 @@ def replace_placeholders_in_cell(cell, placeholders, data):
     for paragraph in cell.paragraphs:
         if '{Skills}' in paragraph.text:
             # Insert the skills section here
-            insert_skills_section(paragraph, data.get('Skills', []))
-            # Remove the placeholder paragraph
-            p_element = paragraph._element
-            p_element.getparent().remove(p_element)
+            insert_skills_section(paragraph, data.get('Skills', []), num_columns=3)
+            # No need to remove the placeholder paragraph here
         elif '{Experience}' in paragraph.text:
             # Insert the experience section here
             insert_experience_section(paragraph, data.get('Experience', []))
@@ -292,22 +290,51 @@ def convert_lines_to_bullets(paragraph):
             paragraph.text = text.lstrip('-•*').strip()  # Remove bullet characters
             paragraph.style = 'List Bullet'
 
-def insert_skills_section(paragraph, skills_data):
+def insert_skills_section(paragraph, skills_data, num_columns=3):
     """
-    Inserts the skills section into the document at the position of the given paragraph.
+    Inserts the skills section into the document at the position of the given paragraph,
+    formatting the skills into multiple columns.
+
+    Parameters:
+    - paragraph: The paragraph after which the skills section will be inserted.
+    - skills_data: A list of skills to display.
+    - num_columns: The number of columns to arrange the skills into.
     """
-    prev_paragraph = paragraph
     if not skills_data:
         logging.warning("No skills data provided.")
         return
 
-    for skill in skills_data:
-        bullet_paragraph = insert_paragraph_after(prev_paragraph, skill, style='List Bullet')
-        apply_run_font_style(bullet_paragraph.runs[0], bullet_paragraph)
-        prev_paragraph = bullet_paragraph
+    # Calculate the number of rows needed
+    num_skills = len(skills_data)
+    num_rows = (num_skills + num_columns - 1) // num_columns  # Ceiling division
 
-    # Add a blank paragraph for spacing
-    blank_paragraph = insert_paragraph_after(prev_paragraph, '')
+    # Create a table with num_rows rows and num_columns columns
+    table = paragraph._parent.add_table(rows=num_rows, cols=num_columns)
+    table.style = 'Table Grid'  # You can set a different style or customize as needed
+
+    # Set table alignment to left
+    table.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+
+    # Distribute the skills into the table cells
+    skill_index = 0
+    for row in table.rows:
+        for cell in row.cells:
+            if skill_index < num_skills:
+                skill = skills_data[skill_index]
+                # Add the skill to the cell
+                cell.text = skill
+                # Apply font styles to the cell's paragraph
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        apply_run_font_style(run, paragraph)
+                skill_index += 1
+            else:
+                # If there are no more skills, leave the cell empty
+                cell.text = ''
+
+    # Remove the original paragraph (the placeholder)
+    p_element = paragraph._element
+    p_element.getparent().remove(p_element)
 
 def insert_experience_section(paragraph, experience_data):
     """
@@ -406,10 +433,8 @@ def create_document(data, output_path):
     for paragraph in doc.paragraphs:
         if '{Skills}' in paragraph.text:
             # Insert the skills section here
-            insert_skills_section(paragraph, data.get('Skills', []))
-            # Remove the placeholder paragraph
-            p_element = paragraph._element
-            p_element.getparent().remove(p_element)
+            insert_skills_section(paragraph, data.get('Skills', []), num_columns=3)
+            # No need to remove the placeholder paragraph here
         elif '{Experience}' in paragraph.text:
             # Insert the experience section here
             insert_experience_section(paragraph, data.get('Experience', []))
