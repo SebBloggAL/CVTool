@@ -182,24 +182,31 @@ def replace_headers(doc):
             lang.set(qn('w:eastAsia'), 'en-US')
             lang.set(qn('w:bidi'), 'ar-SA')
 
-def replace_placeholders_in_cell(cell, placeholders):
+def replace_placeholders_in_cell(cell, placeholders, data):
     """
     Replaces placeholders in a single cell and sets font and language for all runs.
     """
     for paragraph in cell.paragraphs:
-        replace_placeholders_in_paragraph(paragraph, placeholders)
-        convert_lines_to_bullets(paragraph)
+        if '{Experience}' in paragraph.text:
+            # Remove the placeholder paragraph
+            p_element = paragraph._element
+            p_element.getparent().remove(p_element)
+            # Insert the experience section here
+            insert_experience_section(paragraph, data.get('Experience', []))
+        else:
+            replace_placeholders_in_paragraph(paragraph, placeholders)
+            convert_lines_to_bullets(paragraph)
 
     for nested_table in cell.tables:
-        replace_placeholders_in_table(nested_table, placeholders)
+        replace_placeholders_in_table(nested_table, placeholders, data)
 
-def replace_placeholders_in_table(table, placeholders):
+def replace_placeholders_in_table(table, placeholders, data):
     """
     Replaces placeholders in all cells of a table.
     """
     for row in table.rows:
         for cell in row.cells:
-            replace_placeholders_in_cell(cell, placeholders)
+            replace_placeholders_in_cell(cell, placeholders, data)
 
 def set_font_for_all_text(doc, placeholders):
     """
@@ -273,6 +280,43 @@ def convert_lines_to_bullets(paragraph):
             paragraph.text = text.lstrip('-•*').strip()  # Remove bullet characters
             paragraph.style = 'List Bullet'
 
+def insert_experience_section(paragraph, experience_data):
+    """
+    Inserts the experience section into the document at the position of the given paragraph.
+    """
+    prev_paragraph = paragraph
+    for item in experience_data:
+        position = item.get("Position", "")
+        company = item.get("Company", "")
+        duration = item.get("Duration", "")
+        responsibilities = item.get("Responsibilities", [])
+
+        # Create the role title with bold formatting
+        role_title = f"{position} at {company} ({duration})"
+        role_paragraph = insert_paragraph_after(prev_paragraph, '')
+        role_paragraph.style = 'Normal'
+        role_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+        role_run = role_paragraph.add_run(role_title)
+        role_run.bold = True
+        apply_run_font_style(role_run, role_paragraph)
+
+        prev_paragraph = role_paragraph
+
+        # Add responsibilities as bullet points
+        if isinstance(responsibilities, list):
+            for responsibility in responsibilities:
+                bullet_paragraph = insert_paragraph_after(prev_paragraph, responsibility, style='List Bullet')
+                apply_run_font_style(bullet_paragraph.runs[0], bullet_paragraph)
+                prev_paragraph = bullet_paragraph
+        elif isinstance(responsibilities, str):
+            bullet_paragraph = insert_paragraph_after(prev_paragraph, responsibilities, style='List Bullet')
+            apply_run_font_style(bullet_paragraph.runs[0], bullet_paragraph)
+            prev_paragraph = bullet_paragraph
+
+        # Add a blank paragraph for spacing
+        blank_paragraph = insert_paragraph_after(prev_paragraph, '')
+        prev_paragraph = blank_paragraph
+
 def create_document(data, output_path):
     """
     Creates a Word document using the template and fills it with the extracted data.
@@ -302,14 +346,14 @@ def create_document(data, output_path):
     set_styles_language(doc)  # Set language for all styles
     set_list_bullet_style(doc)
 
-    # Prepare placeholders
+    # Prepare placeholders, remove 'Experience' since we'll handle it separately
     placeholders = {
         "{ApplicantName}": data.get("ApplicantName", ""),
         "{Role}": data.get("Role", ""),
         "{SecurityClearance}": data.get("SecurityClearance", "Not specified"),
         "{Summary}": data.get("Summary", ""),
         "{Skills}": data.get("Skills", ""),
-        "{Experience}": data.get("Experience", ""),
+        # "{Experience}": data.get("Experience", ""),  # Remove this line
         "{Education}": data.get("Education", "")
     }
 
@@ -317,12 +361,19 @@ def create_document(data, output_path):
 
     # Replace placeholders in paragraphs
     for paragraph in doc.paragraphs:
-        replace_placeholders_in_paragraph(paragraph, placeholders)
-        convert_lines_to_bullets(paragraph)
+        if '{Experience}' in paragraph.text:
+            # Remove the placeholder paragraph
+            p_element = paragraph._element
+            p_element.getparent().remove(p_element)
+            # Insert the experience section here
+            insert_experience_section(paragraph, data.get('Experience', []))
+        else:
+            replace_placeholders_in_paragraph(paragraph, placeholders)
+            convert_lines_to_bullets(paragraph)
 
     # Replace placeholders in tables
     for table in doc.tables:
-        replace_placeholders_in_table(table, placeholders)
+        replace_placeholders_in_table(table, placeholders, data)
 
     # Replace header placeholders and apply 'Style 1'
     replace_headers(doc)
