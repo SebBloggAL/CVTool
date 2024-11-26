@@ -40,9 +40,9 @@ def format_experience(experience_data):
             formatted_experience += f"{position} at {company} ({duration})\n"
             if isinstance(responsibilities, list):
                 for responsibility in responsibilities:
-                    formatted_experience += f"{responsibility}\n"  # Removed the dash
+                    formatted_experience += f"{responsibility}\n"  
             elif isinstance(responsibilities, str):
-                formatted_experience += f"{responsibility}\n"  # Removed the dash
+                formatted_experience += f"{responsibilities}\n"  
             formatted_experience += "\n"
     elif isinstance(experience_data, dict):
         for key, value in experience_data.items():
