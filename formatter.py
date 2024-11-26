@@ -30,32 +30,34 @@ def format_skills(skills_list):
     return skills_list  # In case it's already a string
 
 def format_experience(experience_data):
-    formatted_experience = ""
+    """
+    Formats the experience data, returning it as a list of dictionaries.
+    Each dictionary contains the keys: Position, Company, Duration, Responsibilities.
+    """
+    formatted_experiences = []
     if isinstance(experience_data, list):
         for item in experience_data:
-            position = item.get("Position", "")
-            company = item.get("Company", "")
-            duration = item.get("Duration", "")
-            responsibilities = item.get("Responsibilities", [])
-            formatted_experience += f"{position} at {company} ({duration})\n"
-            if isinstance(responsibilities, list):
-                for responsibility in responsibilities:
-                    formatted_experience += f"{responsibility}\n"  
-            elif isinstance(responsibilities, str):
-                formatted_experience += f"{responsibilities}\n"  
-            formatted_experience += "\n"
+            formatted_item = {
+                "Position": item.get("Position", ""),
+                "Company": item.get("Company", ""),
+                "Duration": item.get("Duration", ""),
+                "Responsibilities": item.get("Responsibilities", [])
+            }
+            formatted_experiences.append(formatted_item)
     elif isinstance(experience_data, dict):
-        for key, value in experience_data.items():
-            formatted_experience += f"{key}\n"
-            if isinstance(value, list):
-                for responsibility in value:
-                    formatted_experience += f"- {responsibility}\n"
-            elif isinstance(value, str):
-                formatted_experience += f"- {value}\n"
-            formatted_experience += "\n"
-    elif isinstance(experience_data, str):
-        formatted_experience += experience_data
-    return formatted_experience.strip()
+        # If experience_data is a single dictionary, wrap it in a list
+        formatted_item = {
+            "Position": experience_data.get("Position", ""),
+            "Company": experience_data.get("Company", ""),
+            "Duration": experience_data.get("Duration", ""),
+            "Responsibilities": experience_data.get("Responsibilities", [])
+        }
+        formatted_experiences.append(formatted_item)
+    else:
+        # Handle other cases or return an empty list
+        logging.warning("Unexpected format for experience data.")
+    return formatted_experiences
+
 
 def format_education(education_data):
     """
