@@ -237,32 +237,34 @@ def set_list_bullet_style(doc):
 
 def convert_lines_to_bullets(paragraph):
     """
-    Converts lines in a paragraph that should be bullet points into separate paragraphs with bullet style.
+    Splits a paragraph into multiple paragraphs, applying bullet points where necessary.
     """
+    # Get the parent of the paragraph (e.g., Document, Cell)
+    parent = paragraph._parent
+    # Find the index of the current paragraph within its parent
+    index = parent.paragraphs.index(paragraph)
+
+    # Split the paragraph text into lines
     lines = paragraph.text.split('\n')
-    if len(lines) > 1:
-        # Remove the original paragraph
-        p = paragraph._element
-        p.getparent().remove(p)
-        
-        # Insert new paragraphs
-        for line in lines:
-            if line.strip() == '':
-                continue  # Skip empty lines
-            new_para = paragraph._document.add_paragraph(line.strip())
-            if line.startswith('•') or line.startswith('*'):
-                new_para.style = 'List Bullet'
-                # Remove the bullet character if present
-                if line[0] in ['•', '*']:
-                    new_para.text = line[1:].strip()
-            else:
-                new_para.style = paragraph.style
-    else:
-        # If the paragraph is a single line starting with bullet character
-        if paragraph.text.strip().startswith('•') or paragraph.text.strip().startswith('*'):
-            paragraph.style = 'List Bullet'
-            # Remove the bullet character
-            paragraph.text = paragraph.text.strip()[1:].strip()
+    # Remove the original paragraph
+    p_element = paragraph._element
+    p_element.getparent().remove(p_element)
+
+    # Insert new paragraphs at the correct position
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
+        # Determine the style for the new paragraph
+        if line.startswith('•') or line.startswith('*'):
+            line = line[1:].strip()
+            style = 'List Bullet'
+        else:
+            style = paragraph.style
+
+        new_p = parent.add_paragraph(line, style=style)
+        # Insert the new paragraph at the original position + offset
+        parent._body._body.insert(index + i, new_p._element)
 
 
 def create_document(data, output_path):
