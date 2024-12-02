@@ -202,12 +202,34 @@ def parse_json_response(response_text):
 
 def extract_json(text):
     """
-    Extracts the JSON object from the text using a regular expression.
+    Extracts the JSON object from the text by finding the first matching pair of braces.
     """
-    # This regex matches the first JSON object in the text
-    match = re.search(r'\{(?:[^{}]|(?R))*\}', text, re.DOTALL)
-    if match:
-        return match.group(0)
-    else:
-        logging.error("No JSON object found in the assistant's response.")
+    start_idx = text.find('{')
+    if start_idx == -1:
+        logging.error("No opening brace found in the assistant's response.")
         raise ValueError("No JSON object found in the assistant's response.")
+
+    stack = []
+    for idx in range(start_idx, len(text)):
+        char = text[idx]
+        if char == '{':
+            stack.append(char)
+        elif char == '}':
+            if not stack:
+                logging.error("Unbalanced closing brace found in the assistant's response.")
+                raise ValueError("Unbalanced closing brace in the assistant's response.")
+            stack.pop()
+            if not stack:
+                # All braces are closed
+                json_str = text[start_idx:idx+1]
+                # Optional: Validate the extracted JSON
+                try:
+                    json.loads(json_str)
+                    return json_str
+                except json.JSONDecodeError as e:
+                    logging.error(f"Extracted string is not valid JSON: {e}")
+                    raise ValueError("Extracted string is not valid JSON.")
+    # If we reach here, no matching closing brace was found
+    logging.error("No matching closing brace found in the assistant's response.")
+    raise ValueError("No complete JSON object found in the assistant's response.")
+
