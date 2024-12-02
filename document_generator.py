@@ -11,6 +11,8 @@ from docx.oxml import OxmlElement
 from docx.text.paragraph import Paragraph
 import docx
 import docx.oxml
+import re
+from datetime import datetime
 
 def set_document_font(doc):
     """
@@ -292,6 +294,87 @@ def convert_lines_to_bullets(paragraph):
             paragraph.text = text.lstrip('-•*').strip()  # Remove bullet characters
             paragraph.style = 'List Bullet'
 
+def clean_duration_string(duration_str):
+    """
+    Cleans the duration string by removing problematic characters.
+    """
+    if duration_str:
+        # Replace backslashes with forward slashes or remove them
+        duration_str = duration_str.replace('\\', '/')
+        # Remove any non-printable or special characters
+        duration_str = re.sub(r'[^\x20-\x7E]', '', duration_str)
+    return duration_str.strip()
+
+def parse_end_date(duration_str):
+    """
+    Parses the end date from a duration string.
+    """
+    try:
+        if not duration_str:
+            logging.debug("Duration string is empty or None.")
+            return datetime.min  # No duration provided, place at the end
+
+        # Clean the duration string
+        duration_str = clean_duration_string(duration_str)
+        logging.debug(f"Parsing duration string: {duration_str}")
+
+        # Handle "Present" or similar
+        present_terms = ["Present", "Current", "Now", "Ongoing"]
+        duration_str = duration_str.strip()
+        # Split the duration into start and end
+        parts = re.split(r'\s*-\s*', duration_str)
+        logging.debug(f"Split parts: {parts}")
+        if len(parts) == 2:
+            end_str = parts[1]
+        elif len(parts) == 1:
+            # Only one date provided, could be end date
+            end_str = parts[0]
+        else:
+            logging.debug("Unable to split duration string properly.")
+            return datetime.min  # Unable to parse, place at the end
+
+        end_str = end_str.strip()
+        logging.debug(f"End date string: {end_str}")
+        if any(term.lower() == end_str.lower() for term in present_terms):
+            return datetime.now()
+        else:
+            # Try parsing the end date
+            date_formats = ['%b %Y', '%B %Y', '%Y']
+            for fmt in date_formats:
+                try:
+                    end_date = datetime.strptime(end_str, fmt)
+                    return end_date
+                except ValueError:
+                    continue
+            # If we cannot parse the date, place at the end
+            logging.debug(f"Could not parse end date: {end_str}")
+            return datetime.min
+    except Exception as e:
+        logging.error(f"Error parsing duration '{duration_str}': {e}")
+        return datetime.min  # On error, place at the end
+
+def sort_experiences(experience_data):
+    """
+    Sorts the experiences from latest to oldest based on end date.
+    """
+    for item in experience_data:
+        duration = item.get("Duration", "")
+        try:
+            end_date = parse_end_date(duration)
+        except Exception as e:
+            logging.error(f"Error parsing end date for duration '{duration}': {e}")
+            end_date = datetime.min
+        item['_end_date'] = end_date  # Store the end date in the item
+
+    # Now sort the experiences based on '_end_date' field
+    sorted_experiences = sorted(experience_data, key=lambda x: x.get('_end_date', datetime.min), reverse=True)
+
+    # Remove the temporary '_end_date' field
+    for item in sorted_experiences:
+        item.pop('_end_date', None)
+
+    return sorted_experiences
+
 def insert_skills_section(paragraph, skills_data):
     """
     Inserts the skills section into the document at the position of the given paragraph.
@@ -317,6 +400,16 @@ def insert_experience_section(paragraph, experience_data):
     """
     Inserts the experience section into the document at the position of the given paragraph.
     """
+    if not experience_data:
+        logging.warning("No experience data provided.")
+        # Remove the original placeholder paragraph
+        p_element = paragraph._element
+        p_element.getparent().remove(p_element)
+        return
+
+    # Sort the experiences from latest to oldest
+    experience_data = sort_experiences(experience_data)
+
     prev_paragraph = paragraph
     for item in experience_data:
         logging.debug(f"Inserting experience item: {item}")
