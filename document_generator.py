@@ -301,9 +301,26 @@ def clean_duration_string(duration_str):
     if duration_str:
         # Replace backslashes with forward slashes or remove them
         duration_str = duration_str.replace('\\', '/')
-        # Remove any non-printable or special characters
-        duration_str = re.sub(r'[^\x20-\x7E]', '', duration_str)
+        # Remove any characters that are not in the printable ASCII range
+        duration_str = ''.join(c for c in duration_str if ord(c) >= 32 and ord(c) <= 126)
     return duration_str.strip()
+
+def identify_date_format(date_str):
+    """
+    Identifies the date format of a given date string.
+    """
+    date_patterns = {
+        '%d/%m/%Y': r'^\d{1,2}/\d{1,2}/\d{4}$',
+        '%m/%Y': r'^\d{1,2}/\d{4}$',
+        '%b %Y': r'^[A-Za-z]{3} \d{4}$',  # e.g., Jan 2020
+        '%B %Y': r'^[A-Za-z]+ \d{4}$',    # e.g., January 2020
+        '%Y': r'^\d{4}$',
+    }
+
+    for fmt, pattern in date_patterns.items():
+        if re.match(pattern, date_str):
+            return fmt
+    return None  # Format not identified
 
 def parse_end_date(duration_str):
     """
@@ -322,7 +339,7 @@ def parse_end_date(duration_str):
         present_terms = ["Present", "Current", "Now", "Ongoing"]
         duration_str = duration_str.strip()
         # Split the duration into start and end
-        parts = re.split(r'\s*-\s*', duration_str)
+        parts = re.split(r'\s*[-–—]\s*', duration_str)
         logging.debug(f"Split parts: {parts}")
         if len(parts) == 2:
             end_str = parts[1]
@@ -338,17 +355,15 @@ def parse_end_date(duration_str):
         if any(term.lower() == end_str.lower() for term in present_terms):
             return datetime.now()
         else:
-            # Try parsing the end date
-            date_formats = ['%b %Y', '%B %Y', '%Y']
-            for fmt in date_formats:
-                try:
-                    end_date = datetime.strptime(end_str, fmt)
-                    return end_date
-                except ValueError:
-                    continue
-            # If we cannot parse the date, place at the end
-            logging.debug(f"Could not parse end date: {end_str}")
-            return datetime.min
+            # Identify the date format
+            date_format = identify_date_format(end_str)
+            if date_format:
+                end_date = datetime.strptime(end_str, date_format)
+                return end_date
+            else:
+                # If we cannot parse the date, place at the end
+                logging.debug(f"Could not identify date format for end date: {end_str}")
+                return datetime.min
     except Exception as e:
         logging.error(f"Error parsing duration '{duration_str}': {e}")
         return datetime.min  # On error, place at the end
