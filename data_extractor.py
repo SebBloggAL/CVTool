@@ -202,33 +202,54 @@ def parse_json_response(response_text):
 
 def extract_json(text):
     """
-    Extracts the JSON object from the text by finding the first matching pair of braces.
+    Extracts the JSON object from the text, cleans it, and returns it as a string.
     """
+    import json
+
+    # Remove code block markers and leading/trailing whitespace
+    text = text.strip().strip('`')
+
+    # Find the first occurrence of '{' and the last occurrence of '}'
     start_idx = text.find('{')
-    if start_idx == -1:
-        logging.error("No opening brace found in the assistant's response.")
+    end_idx = text.rfind('}')
+    if start_idx == -1 or end_idx == -1:
+        logging.error("No JSON object found in the assistant's response.")
         raise ValueError("No JSON object found in the assistant's response.")
 
-    stack = []
-    for idx in range(start_idx, len(text)):
-        char = text[idx]
-        if char == '{':
-            stack.append(char)
-        elif char == '}':
-            if not stack:
-                logging.error("Unbalanced closing brace found in the assistant's response.")
-                raise ValueError("Unbalanced closing brace in the assistant's response.")
-            stack.pop()
-            if not stack:
-                # All braces are closed
-                json_str = text[start_idx:idx+1]
-                # Optional: Validate the extracted JSON
-                try:
-                    json.loads(json_str)
-                    return json_str
-                except json.JSONDecodeError as e:
-                    logging.error(f"Extracted string is not valid JSON: {e}")
-                    raise ValueError("Extracted string is not valid JSON.")
-    # If we reach here, no matching closing brace was found
-    logging.error("No matching closing brace found in the assistant's response.")
-    raise ValueError("No complete JSON object found in the assistant's response.")
+    # Extract the JSON substring
+    json_str = text[start_idx:end_idx+1]
+
+    # Attempt to parse the JSON string
+    try:
+        data = json.loads(json_str)
+        return json_str  # Return the valid JSON string
+    except json.JSONDecodeError as e:
+        # If parsing fails, attempt to fix common issues
+        logging.warning(f"Initial JSON parsing failed: {e}")
+        json_str_fixed = fix_json_issues(json_str)
+        try:
+            data = json.loads(json_str_fixed)
+            return json_str_fixed
+        except json.JSONDecodeError as e2:
+            logging.error(f"JSON decoding failed after fixes: {e2}")
+            logging.error(f"Problematic JSON string: {json_str_fixed}")
+            raise ValueError("Extracted string is not valid JSON.")
+
+def fix_json_issues(json_str):
+    """
+    Attempts to fix common JSON formatting issues.
+    """
+    # Replace single quotes with double quotes
+    json_str = json_str.replace("'", '"')
+
+    # Remove any trailing commas
+    json_str = re.sub(r',\s*([\]}])', r'\1', json_str)
+
+    # Remove any extra commas before closing braces
+    json_str = re.sub(r',\s*}', '}', json_str)
+    json_str = re.sub(r',\s*\]', ']', json_str)
+
+    # Remove newlines and tabs
+    json_str = json_str.replace('\n', '').replace('\t', '')
+
+    return json_str
