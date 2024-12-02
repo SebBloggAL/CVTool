@@ -299,8 +299,8 @@ def clean_duration_string(duration_str):
     Cleans the duration string by removing problematic characters.
     """
     if duration_str:
-        # Replace backslashes with forward slashes or remove them
-        duration_str = duration_str.replace('\\', '/')
+        # Remove backslashes
+        duration_str = duration_str.replace('\\', '')
         # Remove any characters that are not in the printable ASCII range
         duration_str = ''.join(c for c in duration_str if ord(c) >= 32 and ord(c) <= 126)
     return duration_str.strip()
@@ -333,13 +333,18 @@ def parse_end_date(duration_str):
 
         # Clean the duration string
         duration_str = clean_duration_string(duration_str)
-        logging.debug(f"Parsing duration string: {duration_str}")
+        logging.debug(f"Parsing duration string: '{duration_str}'")
 
         # Handle "Present" or similar
         present_terms = ["Present", "Current", "Now", "Ongoing"]
         duration_str = duration_str.strip()
         # Split the duration into start and end
-        parts = re.split(r'\s*[-–—]\s*', duration_str)
+        try:
+            logging.debug(f"Using regex pattern for splitting: r'\\s*[-–—]\\s*'")
+            parts = re.split(r'\s*[-–—]\s*', duration_str)
+        except re.error as regex_error:
+            logging.error(f"Regex error when splitting duration '{duration_str}': {regex_error}", exc_info=True)
+            return datetime.min  # On error, place at the end
         logging.debug(f"Split parts: {parts}")
         if len(parts) == 2:
             end_str = parts[1]
@@ -351,7 +356,7 @@ def parse_end_date(duration_str):
             return datetime.min  # Unable to parse, place at the end
 
         end_str = end_str.strip()
-        logging.debug(f"End date string: {end_str}")
+        logging.debug(f"End date string: '{end_str}'")
         if any(term.lower() == end_str.lower() for term in present_terms):
             return datetime.now()
         else:
@@ -362,10 +367,10 @@ def parse_end_date(duration_str):
                 return end_date
             else:
                 # If we cannot parse the date, place at the end
-                logging.debug(f"Could not identify date format for end date: {end_str}")
+                logging.debug(f"Could not identify date format for end date: '{end_str}'")
                 return datetime.min
     except Exception as e:
-        logging.error(f"Error parsing duration '{duration_str}': {e}")
+        logging.error(f"Error parsing duration '{duration_str}': {e}", exc_info=True)
         return datetime.min  # On error, place at the end
 
 def sort_experiences(experience_data):
@@ -377,7 +382,7 @@ def sort_experiences(experience_data):
         try:
             end_date = parse_end_date(duration)
         except Exception as e:
-            logging.error(f"Error parsing end date for duration '{duration}': {e}")
+            logging.error(f"Error parsing end date for duration '{duration}': {e}", exc_info=True)
             end_date = datetime.min
         item['_end_date'] = end_date  # Store the end date in the item
 
@@ -493,7 +498,7 @@ def create_document(data, output_path):
     try:
         doc = Document(template_path)
     except Exception as e:
-        logging.error(f"Failed to load template: {e}")
+        logging.error(f"Failed to load template: {e}", exc_info=True)
         raise
 
     # Set the default font, heading style, and language
@@ -549,5 +554,5 @@ def create_document(data, output_path):
         doc.save(output_path)
         logging.info(f"Document saved to {output_path}")
     except Exception as e:
-        logging.error(f"Failed to save document: {e}")
+        logging.error(f"Failed to save document: {e}", exc_info=True)
         raise
