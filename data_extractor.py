@@ -202,54 +202,56 @@ def parse_json_response(response_text):
 
 def extract_json(text):
     """
-    Extracts the JSON object from the text, cleans it, and returns it as a string.
+    Extracts the JSON object from the text, cleans it, and returns it as a dictionary.
     """
     import json
 
-    # Remove code block markers and leading/trailing whitespace
-    text = text.strip().strip('`')
+    # Remove any markdown code block markers or leading/trailing whitespace
+    text = text.strip().strip('`').strip()
 
-    # Find the first occurrence of '{' and the last occurrence of '}'
-    start_idx = text.find('{')
-    end_idx = text.rfind('}')
-    if start_idx == -1 or end_idx == -1:
+    # Use a regular expression to find the first JSON object in the text
+    json_match = re.search(r'\{.*\}', text, re.DOTALL)
+    if not json_match:
         logging.error("No JSON object found in the assistant's response.")
-        raise ValueError("No JSON object found in the assistant's response.")
+        raise ValueError("Extracted string is not valid JSON.")
 
-    # Extract the JSON substring
-    json_str = text[start_idx:end_idx+1]
+    json_str = json_match.group(0)
+
+    # Clean the JSON string
+    json_str = clean_json_string(json_str)
 
     # Attempt to parse the JSON string
     try:
         data = json.loads(json_str)
-        return json_str  # Return the valid JSON string
+        return data
     except json.JSONDecodeError as e:
-        # If parsing fails, attempt to fix common issues
-        logging.warning(f"Initial JSON parsing failed: {e}")
-        json_str_fixed = fix_json_issues(json_str)
-        try:
-            data = json.loads(json_str_fixed)
-            return json_str_fixed
-        except json.JSONDecodeError as e2:
-            logging.error(f"JSON decoding failed after fixes: {e2}")
-            logging.error(f"Problematic JSON string: {json_str_fixed}")
-            raise ValueError("Extracted string is not valid JSON.")
+        logging.error(f"JSON decoding failed: {e}")
+        logging.error(f"Problematic JSON string: {json_str}")
+        raise ValueError("Extracted string is not valid JSON.")
 
-def fix_json_issues(json_str):
+def clean_json_string(json_str):
     """
-    Attempts to fix common JSON formatting issues.
+    Cleans common issues in a JSON string to make it parseable.
     """
     # Replace single quotes with double quotes
     json_str = json_str.replace("'", '"')
 
-    # Remove any trailing commas
-    json_str = re.sub(r',\s*([\]}])', r'\1', json_str)
-
-    # Remove any extra commas before closing braces
-    json_str = re.sub(r',\s*}', '}', json_str)
-    json_str = re.sub(r',\s*\]', ']', json_str)
+    # Remove any trailing commas before closing braces/brackets
+    json_str = re.sub(r',\s*(\}|])', r'\1', json_str)
 
     # Remove newlines and tabs
     json_str = json_str.replace('\n', '').replace('\t', '')
+
+    # Ensure proper escaping of double quotes inside strings
+    json_str = re.sub(r'\\(?=")', r'', json_str)
+
+    # Remove any backslashes not used for escaping
+    json_str = json_str.replace('\\', '')
+
+    # Remove extra whitespace between keys and colons
+    json_str = re.sub(r'\s*:\s*', ':', json_str)
+
+    # Remove extra whitespace after commas
+    json_str = re.sub(r',\s*', ',', json_str)
 
     return json_str
