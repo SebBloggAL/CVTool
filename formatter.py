@@ -13,7 +13,7 @@ def format_data(raw_data):
     
     # Use .get() with default values to handle missing fields
     formatted_data = {
-        "ApplicantName": raw_data.get("Applicant's Name", "Name not provided"),
+        "ApplicantName": raw_data.get("ApplicantName", "Name not provided"),
         "Role": raw_data.get("Role", "Role not specified"),
         "SecurityClearance": security_clearance,
         "Summary": raw_data.get("Summary", "Summary not provided"),
