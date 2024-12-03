@@ -55,7 +55,7 @@ You are an AI assistant that extracts specific information from resumes.
 
 Extract the following information from the CV text provided and return it in valid JSON format. For each item, copy the text exactly as it appears in the CV.
 
-- **ApplicantName**: Copy the exact name as it appears.
+- **ApplicantName**: Copy the exact name of the applicant as it appears in the CV.
 - **Role**: Copy the exact role as stated.
 - **SecurityClearance**: Copy the exact security clearance details.
 - **Summary**: Copy the summary exactly as it appears.
