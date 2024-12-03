@@ -42,31 +42,26 @@ def extract_basic_info(text):
     prompt_basic = f"""
 You are an AI assistant that extracts specific information from resumes.
 
-**Task:**
+**IMPORTANT INSTRUCTIONS:**
 
-Extract the following information from the CV text provided and return it in valid JSON format. For each item, **copy the text exactly as it appears in the CV**, without paraphrasing, summarizing, or omitting any details.
+- **OUTPUT ONLY THE JSON OBJECT:** Do not include any explanations, notes, or extra text.
+- **NO CODE BLOCKS:** Do not wrap the JSON in backticks or code blocks.
+- **VALID JSON ONLY:** Ensure the JSON is valid and can be parsed by standard JSON parsers.
+- **USE DOUBLE QUOTES:** Use double quotes for all keys and string values.
+- **NO EXTRA SPACES:** Avoid unnecessary whitespace within the JSON.
+- **EXACT TEXT:** Copy the text exactly as it appears in the CV for each field.
 
-- **Applicant's Name**: Copy the exact name as it appears in the CV.
-- **Role** (current or desired): Copy the exact role as stated in the CV.
-- **Security Clearance** (if any): Copy the exact security clearance details.
-- **Summary** (a brief personal statement): Copy the summary exactly as it appears.
-- **Skills**: Copy the skills exactly as listed in the CV.
+**TASK:**
 
-**Instructions:**
+Extract the following information from the CV text provided and return it in valid JSON format. For each item, copy the text exactly as it appears in the CV.
 
-- **Use Exact Wording**: Include all relevant information using the exact wording from the CV text. **Do not rephrase, summarize, or omit any information.**
-- **Do Not Add or Infer Information**: Only include information explicitly stated in the CV text.
-- **Handle Missing Information**: If certain information is not available in the CV text, omit that field from the JSON output.
-- **Formatting Guidelines**:
-    - Output only the JSON object, without any markdown formatting or additional text.
-    - Do not include any code block syntax, such as backticks, explanations, or apologies.
-    - Ensure the JSON is complete, valid, and parsable by standard JSON parsers.
-    - Use double quotes for all keys and string values.
-    - The response should start with a curly brace "{{" and end with a curly brace "}}".
-    - Avoid using backticks in your response.
-    - Avoid using the American spelling of words; prioritise English spelling.
+- **ApplicantName**: Copy the exact name as it appears.
+- **Role**: Copy the exact role as stated.
+- **SecurityClearance**: Copy the exact security clearance details.
+- **Summary**: Copy the summary exactly as it appears.
+- **Skills**: Copy the skills exactly as listed.
 
-**CV Text:**
+**CV TEXT:**
 {text}
 """
 
@@ -79,46 +74,33 @@ def extract_experience_education(text):
     Extracts experience and education information from the CV text.
     """
     prompt_experience = f"""
-    Prompt:
-    
-    You are an AI assistant that extracts specific information from resumes.
-    
-    Task:
-    
-    Extract the following information from the CV text provided and return it in valid JSON format.
-    
-    For each item, copy the text exactly as it appears in the CV, without paraphrasing, summarizing, or omitting any details.
-    
-    Experience (as a list of work experiences, each with):
-    "Position": Copy the exact job title.
-    "Company": Copy the exact company name.
-    "Duration": Copy the exact duration.
-    "Responsibilities": Copy the exact responsibilities and achievements.
-    "Technologies Used": Copy the exact technologies mentioned.
-    Education (as a list of educational qualifications, each with):
-    "Degree": Copy the exact degree title.
-    "Institution": Copy the exact institution name.
-    Instructions:
-    
-    Use Exact Wording: Include all relevant information using the exact wording from the CV text. Do not rephrase, summarize, or omit any information.
-    Do Not Add or Infer Information: Only include information explicitly stated in the CV text.
-    Handle Missing Information: If certain information is not available in the CV text, omit that field from the JSON output.
-    Formatting Guidelines:
-    Turn paragraphs into bullet points, changing **ONLY** format, not content
-    Output only the JSON object, without any markdown formatting or additional text.
-    Do not include any code block syntax, such as backticks, explanations, or apologies.
-    Ensure the JSON is complete, valid, and parsable by standard JSON parsers.
-    Use double quotes for all keys and string values.
-    The response should start with a curly brace ("{") and end with a curly brace ("}").
-    Avoid using backticks in your response.
-    Avoid using the American spelling of words; prioritise English spelling.
-    Content Exclusions:
-    Do not include the role location in any of the fields.
-    Do not include the education location beyond the name of the university or institute.
-    Do not mention if the role was a contract position.
-    Do not mention the dates of education.
-        
-CV Text:
+You are an AI assistant that extracts specific information from resumes.
+
+**IMPORTANT INSTRUCTIONS:**
+
+- **OUTPUT ONLY THE JSON OBJECT:** Do not include any explanations, notes, or extra text.
+- **NO CODE BLOCKS:** Do not wrap the JSON in backticks or code blocks.
+- **VALID JSON ONLY:** Ensure the JSON is valid and can be parsed by standard JSON parsers.
+- **USE DOUBLE QUOTES:** Use double quotes for all keys and string values.
+- **NO EXTRA SPACES:** Avoid unnecessary whitespace within the JSON.
+- **EXACT TEXT:** Copy the text exactly as it appears in the CV for each field.
+
+**TASK:**
+
+Extract the following information from the CV text provided and return it in valid JSON format. For each item, copy the text exactly as it appears.
+
+- **Experience** (as a list of work experiences, each with):
+  - **Position**: Copy the exact job title.
+  - **Company**: Copy the exact company name.
+  - **Duration**: Copy the exact duration.
+  - **Responsibilities**: Copy the exact responsibilities and achievements.
+  - **TechnologiesUsed**: Copy the exact technologies mentioned.
+
+- **Education** (as a list of educational qualifications, each with):
+  - **Degree**: Copy the exact degree title.
+  - **Institution**: Copy the exact institution name.
+
+**CV TEXT:**
 {text}
 """
 
