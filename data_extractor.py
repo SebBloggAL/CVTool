@@ -184,32 +184,26 @@ def parse_json_response(response_text):
 
 def extract_json(text):
     """
-    Extracts the JSON object from the text, cleans it, and returns it as a dictionary.
+    Extracts the JSON object from the text by finding the first and last curly braces.
     """
-    import json
+    # Remove any leading/trailing whitespace and code block markers
+    text = text.strip().strip('`')
 
-    # Remove any markdown code block markers or leading/trailing whitespace
-    text = text.strip().strip('`').strip()
+    # Find the first '{' and the last '}'
+    start_idx = text.find('{')
+    end_idx = text.rfind('}')
 
-    # Use a regular expression to find the first JSON object in the text
-    json_match = re.search(r'\{.*\}', text, re.DOTALL)
-    if not json_match:
+    if start_idx == -1 or end_idx == -1 or start_idx >= end_idx:
         logging.error("No JSON object found in the assistant's response.")
         raise ValueError("Extracted string is not valid JSON.")
 
-    json_str = json_match.group(0)
+    json_str = text[start_idx:end_idx+1]
 
     # Clean the JSON string
     json_str = clean_json_string(json_str)
 
-    # Attempt to parse the JSON string
-    try:
-        data = json.loads(json_str)
-        return data
-    except json.JSONDecodeError as e:
-        logging.error(f"JSON decoding failed: {e}")
-        logging.error(f"Problematic JSON string: {json_str}")
-        raise ValueError("Extracted string is not valid JSON.")
+    return json_str
+
 
 def clean_json_string(json_str):
     """
@@ -222,18 +216,15 @@ def clean_json_string(json_str):
     json_str = re.sub(r',\s*(\}|])', r'\1', json_str)
 
     # Remove newlines and tabs
-    json_str = json_str.replace('\n', '').replace('\t', '')
+    json_str = json_str.replace('\n', '').replace('\t', '').strip()
 
-    # Ensure proper escaping of double quotes inside strings
-    json_str = re.sub(r'\\(?=")', r'', json_str)
+    # Remove extra whitespace
+    json_str = re.sub(r'\s+', ' ', json_str)
 
-    # Remove any backslashes not used for escaping
-    json_str = json_str.replace('\\', '')
+    # Ensure proper commas between items
+    json_str = re.sub(r'(?<=[\}|\]])\s*(?=[\{|\[]|")', ',', json_str)
 
-    # Remove extra whitespace between keys and colons
-    json_str = re.sub(r'\s*:\s*', ':', json_str)
-
-    # Remove extra whitespace after commas
-    json_str = re.sub(r',\s*', ',', json_str)
+    # Remove any remaining backslashes not part of escape sequences
+    json_str = re.sub(r'\\(?!["\\/bfnrtu])', '', json_str)
 
     return json_str
