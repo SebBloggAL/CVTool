@@ -81,6 +81,8 @@ def apply_run_font_style(run, paragraph, is_applicant_name=False):
     """
     Applies font and language settings to a run.
     """
+    if not run:
+        return  # Or handle the case where run is None
     font = run.font
     font.name = 'Calibri'
     if paragraph.style.name == 'Style 1':
@@ -254,11 +256,12 @@ def insert_paragraph_after(paragraph, text='', style=None):
     new_p = OxmlElement('w:p')
     paragraph._element.addnext(new_p)
     new_paragraph = Paragraph(new_p, paragraph._parent)
-    if text:
-        new_run = new_paragraph.add_run(text)
+    # Ensure there is at least one run
+    new_run = new_paragraph.add_run(text)
     if style is not None:
         new_paragraph.style = style
     return new_paragraph
+
 
 def convert_lines_to_bullets(paragraph):
     """
@@ -405,6 +408,8 @@ def insert_skills_section(paragraph, skills_data):
         return
 
     for skill in skills_data:
+        if not skill.strip():
+            continue  # Skip empty skills
         bullet_paragraph = insert_paragraph_after(prev_paragraph, skill, style='List Bullet')
         apply_run_font_style(bullet_paragraph.runs[0], bullet_paragraph)
         prev_paragraph = bullet_paragraph
