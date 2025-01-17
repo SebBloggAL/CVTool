@@ -1,5 +1,6 @@
 # app.py
-
+import sys
+import traceback
 import os
 import logging
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash
@@ -15,14 +16,21 @@ UPLOAD_FOLDER = 'Documents/To_Process'
 PROCESSED_FOLDER = 'Documents/Processed'
 ALLOWED_EXTENSIONS = {'pdf', 'docx'}
 
-# Initialize Flask app
+# Create Flask app
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['PROCESSED_FOLDER'] = PROCESSED_FOLDER
 app.secret_key = os.urandom(24)  # For flash messages
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+#Set up logging to stdout (so Azure's Log Stream can pick it up)
+handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+logger = logging.getLogger()  # root logger
+logger.setLevel(logging.DEBUG)  # or INFO, depending on your needs
+logger.handlers = []  # Clear existing handlers if you called logging.basicConfig earlier
+logger.addHandler(handler)
 
 def allowed_file(filename):
     """Check if the file has an allowed extension."""
@@ -74,7 +82,8 @@ def index():
                     return redirect(request.url)
             
             except Exception as e:
-                logging.error(f"Error processing file: {e}")
+                tb_str = traceback.format_exc()
+                logging.error(f"Error processing file: {tb_str}")
                 flash(f"An error occurred while processing the file: {e}")
                 return redirect(request.url)
         else:
@@ -86,7 +95,6 @@ def index():
 @app.route('/download/<filename>', methods=['GET'])
 def download_file(filename):
     """Provide the processed CV for download."""
-    # Ensure the filename is secure
     filename = secure_filename(filename)
     return send_from_directory(app.config['PROCESSED_FOLDER'], filename, as_attachment=True)
 
