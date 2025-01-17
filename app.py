@@ -35,6 +35,12 @@ logger.addHandler(handler)
 def allowed_file(filename):
     """Check if the file has an allowed extension."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    
+@app.route('/test-logging')
+def test_logging():
+    logging.info("Hello from /test-logging endpoint!")
+    return "Logging route called!"
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
