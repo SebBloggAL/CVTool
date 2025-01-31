@@ -206,25 +206,33 @@ def extract_json(text):
 
 
 def clean_json_string(json_str):
-    """
-    Cleans common issues in a JSON string to make it parseable.
-    """
-    # Replace single quotes with double quotes
+    import re
+
+    # 1. Replace single quotes with double quotes
     json_str = json_str.replace("'", '"')
 
-    # Remove any trailing commas before closing braces/brackets
-    json_str = re.sub(r',\s*(\}|])', r'\1', json_str)
+    # 2. Replace “curly quotes” or other unicode quotes with straight quotes
+    json_str = json_str.replace("“", '"').replace("”", '"')
 
-    # Remove newlines and tabs
-    json_str = json_str.replace('\n', '').replace('\t', '').strip()
+    # 3. Optionally replace en-dashes and em-dashes with simple hyphens
+    json_str = json_str.replace("–", "-").replace("—", "-")
 
-    # Remove extra whitespace
-    json_str = re.sub(r'\s+', ' ', json_str)
+    # 4. Escape newlines by converting them to literal \n
+    #    (If you have Windows-style carriage returns \r\n, remove or standardize them first.)
+    json_str = json_str.replace("\r", "")
+    json_str = json_str.replace("\n", "\\n")
 
-    # Ensure proper commas between items
-    json_str = re.sub(r'(?<=[\}|\]])\s*(?=[\{|\[]|")', ',', json_str)
+    # 5. Remove trailing commas before closing braces or brackets
+    json_str = re.sub(r',\s*(\}|\])', r'\1', json_str)
 
-    # Remove any remaining backslashes not part of escape sequences
-    json_str = re.sub(r'\\(?!["\\/bfnrtu])', '', json_str)
+    # 6. Remove extra whitespace
+    #    This step is optional if you care about whitespace in the final JSON.
+    json_str = re.sub(r'\s+', ' ', json_str).strip()
+
+    # 7. You can attempt to fix unescaped double quotes inside strings,
+    #    but that’s tricky with naive regex. A safer approach might be a JSON linter/repair library.
+    #    For example, if you suspect that quotes appear unescaped within a string,
+    #    you could do more advanced fixes here. But be careful not to break valid JSON.
 
     return json_str
+
