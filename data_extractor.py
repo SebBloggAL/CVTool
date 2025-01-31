@@ -42,28 +42,36 @@ def extract_basic_info(text):
     prompt_basic = f"""
 You are an AI assistant that extracts specific information from resumes.
 
-**IMPORTANT INSTRUCTIONS:**
+IMPORTANT INSTRUCTIONS:
+1. Output ONLY one valid JSON object — no explanations or extra text.
+2. Do NOT wrap in code fences (` or ```).
+3. Must be fully valid JSON:
+   - Balanced braces {{ }}.
+   - Double quotes around keys and string values.
+   - No trailing commas.
+4. Use the exact text from the CV for each field.
 
-- **OUTPUT ONLY THE JSON OBJECT:** Do not include any explanations, notes, or extra text.
-- **NO CODE BLOCKS:** Do not wrap the JSON in backticks or code blocks.
-- **VALID JSON ONLY:** Ensure the JSON is valid and can be parsed by standard JSON parsers.
-- **USE DOUBLE QUOTES:** Use double quotes for all keys and string values.
-- **NO EXTRA SPACES:** Avoid unnecessary whitespace within the JSON.
-- **EXACT TEXT:** Copy the text exactly as it appears in the CV for each field.
+EXAMPLE STRUCTURE (do not copy exactly, just follow the shape):
+{{
+  "ApplicantName": "...",
+  "Role": "...",
+  "SecurityClearance": "...",
+  "Summary": "...",
+  "Skills": "..."
+}}
 
-**TASK:**
+TASK:
+Extract the following from the CV text, copying the text exactly as it appears:
+- ApplicantName
+- Role
+- SecurityClearance
+- Summary
+- Skills
 
-Extract the following information from the CV text provided and return it in valid JSON format. For each item, copy the text exactly as it appears in the CV.
-
-- **ApplicantName**: Copy the exact name of the applicant as it appears in the CV.
-- **Role**: Copy the exact role as stated.
-- **SecurityClearance**: Copy the exact security clearance details.
-- **Summary**: Copy the summary exactly as it appears.
-- **Skills**: Copy the skills exactly as listed.
-
-**CV TEXT:**
+CV TEXT:
 {text}
 """
+
 
     response_text = call_openai_api(prompt_basic, max_tokens=1500, call_type="Basic Info Extraction")
     data_basic = parse_json_response(response_text)
@@ -76,33 +84,52 @@ def extract_experience_education(text):
     prompt_experience = f"""
 You are an AI assistant that extracts specific information from resumes.
 
-**IMPORTANT INSTRUCTIONS:**
+IMPORTANT INSTRUCTIONS:
+1. Output ONLY one valid JSON object — no explanations or extra text.
+2. Do NOT wrap in code fences (` or ```).
+3. Must be fully valid JSON:
+   - Balanced braces {{ }} and brackets [ ].
+   - Double quotes around keys and string values.
+   - No trailing commas.
+4. Use the exact text from the CV for each field.
 
-- **OUTPUT ONLY THE JSON OBJECT:** Do not include any explanations, notes, or extra text.
-- **NO CODE BLOCKS:** Do not wrap the JSON in backticks or code blocks.
-- **VALID JSON ONLY:** Ensure the JSON is valid and can be parsed by standard JSON parsers.
-- **USE DOUBLE QUOTES:** Use double quotes for all keys and string values.
-- **NO EXTRA SPACES:** Avoid unnecessary whitespace within the JSON.
-- **EXACT TEXT:** Copy the text exactly as it appears in the CV for each field.
+EXAMPLE STRUCTURE (do not copy exactly, just follow the shape):
+{{
+  "Experience": [
+    {{
+      "Position": "...",
+      "Company": "...",
+      "Duration": "...",
+      "Responsibilities": "...",
+      "TechnologiesUsed": "..."
+    }}
+  ],
+  "Education": [
+    {{
+      "Degree": "...",
+      "Institution": "..."
+    }}
+  ]
+}}
 
-**TASK:**
+TASK:
+Extract the following from the CV text, copying the text exactly as it appears:
 
-Extract the following information from the CV text provided and return it in valid JSON format. For each item, copy the text exactly as it appears.
+- Experience (as a list of work experiences, each with):
+  - Position
+  - Company
+  - Duration
+  - Responsibilities
+  - TechnologiesUsed
 
-- **Experience** (as a list of work experiences, each with):
-  - **Position**: Copy the exact job title.
-  - **Company**: Copy the exact company name.
-  - **Duration**: Copy the exact duration.
-  - **Responsibilities**: Copy the exact responsibilities and achievements.
-  - **TechnologiesUsed**: Copy the exact technologies mentioned.
+- Education (as a list of educational qualifications, each with):
+  - Degree
+  - Institution
 
-- **Education** (as a list of educational qualifications, each with):
-  - **Degree**: Copy the exact degree title.
-  - **Institution**: Copy the exact institution name.
-
-**CV TEXT:**
+CV TEXT:
 {text}
 """
+
 
 
     response_text = call_openai_api(prompt_experience, max_tokens=3000, call_type="Experience & Education Extraction")
