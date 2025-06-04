@@ -40,7 +40,7 @@ def extract_basic_info(text):
     """
     Extracts basic information from the CV text.
     """
-     prompt_basic = f"""
+    prompt_basic = f"""
  You are an AI assistant that extracts specific information from resumes.
 
  IMPORTANT INSTRUCTIONS:
