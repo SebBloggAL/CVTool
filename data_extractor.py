@@ -40,24 +40,39 @@ def extract_basic_info(text):
     """
     Extracts basic information from the CV text.
     """
-    prompt_basic = f"""
-You are an AI assistant extracting from a CV with explicit markers.
+     prompt_basic = f"""
+ You are an AI assistant that extracts specific information from resumes.
 
-OUTPUT a single JSON object — no explanations, no code fences.
+ IMPORTANT INSTRUCTIONS:
+ 1. Output ONLY one valid JSON object — no explanations or extra text.
+ 2. Do NOT wrap in code fences (` or ```).
+ 3. Must be fully valid JSON:
+    - Balanced braces {{ }}.
+    - Double quotes around keys and string values.
+    - No trailing commas.
+    - Every key:value pair must be separated by a comma.
+ 4. Use the exact text from the CV for each field.
 
-Use everything between "=== Summary ===" and "=== Skills ===" as "Summary",
-and between "=== Skills ===" and "=== Experience ===" as "Skills".
+ EXAMPLE STRUCTURE:
+ {{
+   "ApplicantName": "Jane Doe",
+   "Role": "DevOps Engineer",
+   "SecurityClearance": "TopSecret",
+   "Summary": "Cloud infrastructure specialist…",
+   "Skills": ["Terraform", "Kubernetes"]
+ }}
 
-FIELDS:
-- ApplicantName
-- Role
-- SecurityClearance
-- Summary
-- Skills
+ TASK:
+ Extract the following from the CV text, copying the text exactly as it appears:
+ - ApplicantName
+ - Role
+ - SecurityClearance
+ - Summary
+ - Skills
 
-CV TEXT:
-{text}
-"""
+ CV TEXT:
+ {text}
+ """
 
     response_text = call_openai_api(
         prompt_basic,
