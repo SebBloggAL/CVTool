@@ -480,7 +480,7 @@ def create_document(data, output_path):
       - data (dict): The data to populate in the document (must include "Certifications").
       - output_path (str): Where to save the final .docx.
     """
-    template_path = 'Documents/Template/blank_template.docx'
+    template_path = 'Documents/Templates/blank_template.docx'
 
     # Ensure output directory exists
     output_dir = os.path.dirname(output_path)
