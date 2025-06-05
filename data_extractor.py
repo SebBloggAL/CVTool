@@ -17,10 +17,9 @@ def extract_cv_data(text):
     Uses the OpenAI API to extract structured data from the CV text.
     We first inject explicit section markers so the LLM output is more reliable.
     """
-    # 1) Insert consistent section markers
-    sections = ["Summary", "Skills", "Experience", "Education"]
+    # 1) Insert consistent section markers for known headings
+    sections = ["Summary", "Skills", "Experience", "Education", "Certifications"]
     for sec in sections:
-        # match a heading on its own line, case-insensitive
         text = re.sub(
             rf'\n\s*{sec}\s*\n',
             f'\n=== {sec} ===\n',
@@ -28,12 +27,12 @@ def extract_cv_data(text):
             flags=re.IGNORECASE
         )
 
-    # 2) Now extract JSON in two passes
+    # 2) Extract JSON in two passes: basic info + body (Experience/Education/Certs)
     data_basic = extract_basic_info(text)
-    data_experience = extract_experience_education(text)
+    data_body = extract_experience_education_and_certifications(text)
 
-    # Combine the results
-    return {**data_basic, **data_experience}
+    # Combine and return
+    return {**data_basic, **data_body}
 
 
 def extract_basic_info(text):
@@ -41,38 +40,38 @@ def extract_basic_info(text):
     Extracts basic information from the CV text.
     """
     prompt_basic = f"""
- You are an AI assistant that extracts specific information from resumes.
+You are an AI assistant that extracts basic information from a CV with explicit markers.
 
- IMPORTANT INSTRUCTIONS:
- 1. Output ONLY one valid JSON object — no explanations or extra text.
- 2. Do NOT wrap in code fences (` or ```).
- 3. Must be fully valid JSON:
-    - Balanced braces {{ }}.
-    - Double quotes around keys and string values.
-    - No trailing commas.
-    - Every key:value pair must be separated by a comma.
- 4. Use the exact text from the CV for each field.
+IMPORTANT INSTRUCTIONS:
+1. Output ONLY one valid JSON object—no explanations, no extra text.
+2. Do NOT wrap in code fences (` or ```).
+3. Must be fully valid JSON:
+   - Balanced braces {{ }}.
+   - Double quotes around keys and string values.
+   - No trailing commas.
+   - Every key:value pair must be separated by a comma.
+4. Use the exact text from the CV for each field.
 
- EXAMPLE STRUCTURE:
- {{
-   "ApplicantName": "Jane Doe",
-   "Role": "DevOps Engineer",
-   "SecurityClearance": "TopSecret",
-   "Summary": "Cloud infrastructure specialist…",
-   "Skills": ["Terraform", "Kubernetes"]
- }}
+EXAMPLE STRUCTURE:
+{{
+  "ApplicantName": "Jane Doe",
+  "Role": "DevOps Engineer",
+  "SecurityClearance": "TopSecret",
+  "Summary": "Cloud infrastructure specialist…",
+  "Skills": ["Terraform", "Kubernetes"]
+}}
 
- TASK:
- Extract the following from the CV text, copying the text exactly as it appears:
- - ApplicantName
- - Role
- - SecurityClearance
- - Summary
- - Skills
+TASK:
+Extract the following from the CV text, copying the text exactly as it appears:
+- ApplicantName
+- Role
+- SecurityClearance
+- Summary (everything between "=== Summary ===" and "=== Skills ===")
+- Skills (everything between "=== Skills ===" and "=== Experience ===")
 
- CV TEXT:
- {text}
- """
+CV TEXT:
+{text}
+"""
 
     response_text = call_openai_api(
         prompt_basic,
@@ -82,31 +81,45 @@ def extract_basic_info(text):
     return parse_json_response(response_text)
 
 
-def extract_experience_education(text):
+def extract_experience_education_and_certifications(text):
     """
-    Extracts experience and education from the CV text.
+    Extracts Experience, Education, and Certifications from the CV text.
     """
-    prompt_experience = f"""
-You are an AI assistant extracting from a CV with explicit markers.
+    prompt = f"""
+You are an AI assistant that extracts Experience, Education, and Certifications from a CV with explicit markers.
 
-OUTPUT a single JSON object — no explanations, no code fences.
+OUTPUT a single JSON object—no explanations, no extra text, no code fences.
 
-Use everything between "=== Experience ===" and "=== Education ===" as "Experience".
-Use everything after "=== Education ===" as "Education".
+Use the following rules:
+- Everything between "=== Experience ===" and "=== Education ===" → "Experience"
+- Everything between "=== Education ===" and "=== Certifications ===" → "Education"
+- Everything after "=== Certifications ===" → "Certifications"
 
 STRUCTURE:
 {{
-  "Experience": [ {{ 
-      "Position": "...", 
-      "Company": "...", 
-      "Duration": "...", 
-      "Responsibilities": [...], 
-      "TechnologiesUsed": "..." 
-  }} ],
-  "Education": [ {{ 
-      "Degree": "...", 
-      "Institution": "..." 
-  }} ]
+  "Experience": [
+    {{
+      "Position": "...",
+      "Company": "...",
+      "Duration": "...",
+      "Responsibilities": [...],
+      "TechnologiesUsed": "..."
+    }}
+    // ... possibly more experience objects ...
+  ],
+  "Education": [
+    {{
+      "Degree": "...",
+      "Institution": "...",
+      "Duration": "..."
+    }}
+    // ... possibly more education objects ...
+  ],
+  "Certifications": [
+    "Certification A",
+    "Certification B"
+    // ... possibly more strings ...
+  ]
 }}
 
 CV TEXT:
@@ -114,16 +127,17 @@ CV TEXT:
 """
 
     response_text = call_openai_api(
-        prompt_experience,
-        max_tokens=3000,
-        call_type="Experience & Education Extraction"
+        prompt,
+        max_tokens=3500,
+        call_type="Exp_Edu_Cert Extraction"
     )
     return parse_json_response(response_text)
 
 
 def call_openai_api(prompt, max_tokens, call_type=""):
     """
-    Calls OpenAI and logs the raw response.
+    Calls the OpenAI API with the given prompt and returns the assistant's response text.
+    Logs the raw response (for debugging).
     """
     try:
         response = openai.ChatCompletion.create(
@@ -135,12 +149,13 @@ def call_openai_api(prompt, max_tokens, call_type=""):
         response_text = response.choices[0].message["content"].strip()
         logging.debug(f"=== {call_type} RAW RESPONSE ===\n{response_text}\n")
 
-        # Timestamped logging
+        # Timestamped logging to file
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         entry = f"\n\n=== {call_type} [{timestamp}] ===\n{response_text}"
         with file_lock, open("assistant_response.txt", "a", encoding="utf-8") as f:
             f.write(entry)
 
+        # Remove any backticks
         return response_text.replace('`', '')
 
     except Exception as e:
@@ -155,31 +170,30 @@ def parse_json_response(response_text):
     try:
         return json.loads(response_text)
     except json.JSONDecodeError:
+        # Attempt to extract just the first JSON object
         json_str = extract_json(response_text)
         return json.loads(json_str)
 
 
 def extract_json(text):
     """
-    Grabs the first JSON object in the text.
+    Extracts the first JSON object from the text by finding the first '{' and the last '}'.
     """
-    # Strip code fences and whitespace
     clean = text.strip().strip('`')
     start = clean.find('{')
     end = clean.rfind('}')
     if start == -1 or end == -1:
         logging.error("No JSON object found.")
         raise ValueError("Invalid JSON response.")
-    return clean[start : end+1]
+    return clean[start : end + 1]
 
 
 def clean_json_string(json_str):
     """
-    Performs regex clean-up on a JSON-ish string.
+    Performs regex-based clean-up on a JSON-ish string (not currently used by default).
     """
     import re
 
-    # Straighten quotes and remove trailing commas
     json_str = (
         json_str
         .replace("'", '"')
