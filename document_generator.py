@@ -1,5 +1,4 @@
 # document_generator.py
-
 import os
 import logging
 from docx import Document
@@ -14,6 +13,7 @@ import docx.oxml
 import re
 from datetime import datetime
 
+
 def set_document_font(doc):
     """
     Sets the default font for the entire document to Calibri with a size of 10.5 pt.
@@ -23,6 +23,7 @@ def set_document_font(doc):
     font.name = 'Calibri'
     font.size = Pt(10.5)
     font.element.rPr.rFonts.set(qn('w:eastAsia'), 'Calibri')
+
 
 def set_heading_style(doc):
     """
@@ -46,6 +47,7 @@ def set_heading_style(doc):
     paragraph_format = heading_style.paragraph_format
     paragraph_format.space_after = Pt(12)
 
+
 def set_document_defaults_language(doc):
     """
     Sets the document-wide default language to British English.
@@ -62,6 +64,7 @@ def set_document_defaults_language(doc):
     lang.set(qn('w:eastAsia'), 'en-US')
     lang.set(qn('w:bidi'), 'ar-SA')
 
+
 def set_styles_language(doc):
     """
     Sets the language for all styles to British English.
@@ -77,17 +80,18 @@ def set_styles_language(doc):
             lang.set(qn('w:eastAsia'), 'en-US')
             lang.set(qn('w:bidi'), 'ar-SA')
 
+
 def apply_run_font_style(run, paragraph, is_applicant_name=False):
     """
     Applies font and language settings to a run.
     """
     if not run:
-        return  # Or handle the case where run is None
+        return
     font = run.font
     font.name = 'Calibri'
     if paragraph.style.name == 'Style 1':
         font.size = Pt(16)
-        font.underline = True  # Ensure headings are underlined
+        font.underline = True
     elif is_applicant_name:
         font.size = Pt(20)
     else:
@@ -104,13 +108,13 @@ def apply_run_font_style(run, paragraph, is_applicant_name=False):
     lang.set(qn('w:eastAsia'), 'en-US')
     lang.set(qn('w:bidi'), 'ar-SA')
 
+
 def replace_placeholders_in_paragraph(paragraph, placeholders):
     """
     Replaces placeholders in a paragraph with actual data.
     """
-    # Combine all run texts to handle placeholders split across runs
     full_text = ''.join(run.text for run in paragraph.runs)
-    original_text = full_text  # Keep original for comparison
+    original_text = full_text
 
     for key, value in placeholders.items():
         if key in full_text:
@@ -118,68 +122,57 @@ def replace_placeholders_in_paragraph(paragraph, placeholders):
             logging.debug(f"Replaced '{key}' with '{value}' in paragraph.")
 
     if full_text != original_text:
-        # Clear existing runs properly
+        # Clear existing runs
         for run in paragraph.runs:
             p = run._element
             p.getparent().remove(p)
         paragraph._p.clear_content()
         paragraph.runs.clear()
 
-        # Handle special formatting for specific placeholders
+        # Handle special formatting for {ApplicantName}
         if "{ApplicantName}" in original_text:
-            # Split the text to isolate {ApplicantName}
             parts = original_text.split("{ApplicantName}")
-            # Create runs for each part
             for i, part in enumerate(parts):
                 if part:
                     run = paragraph.add_run(part)
                     apply_run_font_style(run, paragraph)
                 if i < len(parts) - 1:
-                    # Insert ApplicantName with font size 20
                     run = paragraph.add_run(placeholders["{ApplicantName}"])
                     apply_run_font_style(run, paragraph, is_applicant_name=True)
         else:
-            # Add a new run with the replaced text
             new_run = paragraph.add_run(full_text)
             apply_run_font_style(new_run, paragraph)
 
+
 def replace_headers(doc):
     """
-    Replaces header placeholders (e.g., [Summary]) with actual header text and applies 'Style 1'.
+    Replaces header placeholders (e.g., [Summary], [Certifications]) with actual header text and applies 'Style 1'.
     """
     header_placeholders = {
         "[Security Clearance]": "Security Clearance:",
         "[Summary]": "Summary",
         "[Skills]": "Skills",
         "[Experience]": "Experience",
-        "[Education]": "Education"
+        "[Education]": "Education",
+        "[Certifications]": "Certifications"
     }
 
     for paragraph in doc.paragraphs:
         text = paragraph.text.strip()
         if text in header_placeholders:
-            # Replace the placeholder with actual header text
             paragraph.text = header_placeholders[text]
-
-            # Clear existing runs
             paragraph.clear()
-
-            # Apply 'Style 1' to the paragraph
             paragraph.style = 'Style 1'
-
-            # Add new run with header text
             new_run = paragraph.add_run(header_placeholders[text])
 
-            # Set the font and language for the new run
             font = new_run.font
             font.name = 'Calibri'
             font.size = Pt(16)
             font.bold = True
-            font.underline = True  # Underline the headings
-            font.color.rgb = RGBColor(226, 106, 35)  # Amber color
+            font.underline = True
+            font.color.rgb = RGBColor(226, 106, 35)
             font.element.rPr.rFonts.set(qn('w:eastAsia'), 'Calibri')
 
-            # Set the language
             rpr = new_run._element.get_or_add_rPr()
             lang = rpr.find(qn('w:lang'))
             if lang is None:
@@ -189,29 +182,34 @@ def replace_headers(doc):
             lang.set(qn('w:eastAsia'), 'en-US')
             lang.set(qn('w:bidi'), 'ar-SA')
 
+
 def replace_placeholders_in_cell(cell, placeholders, data):
     """
     Replaces placeholders in a single cell and sets font and language for all runs.
     """
     for paragraph in cell.paragraphs:
         if '{Skills}' in paragraph.text:
-            # Insert the skills section here
             insert_skills_section(paragraph, data.get('Skills', []))
-            # Remove the placeholder paragraph
             p_element = paragraph._element
             p_element.getparent().remove(p_element)
+
         elif '{Experience}' in paragraph.text:
-            # Insert the experience section here
             insert_experience_section(paragraph, data.get('Experience', []))
-            # Remove the placeholder paragraph
             p_element = paragraph._element
             p_element.getparent().remove(p_element)
+
+        elif '{Certifications}' in paragraph.text:
+            insert_certifications_section(paragraph, data.get('Certifications', []))
+            p_element = paragraph._element
+            p_element.getparent().remove(p_element)
+
         else:
             replace_placeholders_in_paragraph(paragraph, placeholders)
             convert_lines_to_bullets(paragraph)
 
     for nested_table in cell.tables:
         replace_placeholders_in_table(nested_table, placeholders, data)
+
 
 def replace_placeholders_in_table(table, placeholders, data):
     """
@@ -221,9 +219,10 @@ def replace_placeholders_in_table(table, placeholders, data):
         for cell in row.cells:
             replace_placeholders_in_cell(cell, placeholders, data)
 
+
 def set_font_for_all_text(doc, placeholders):
     """
-    Sets the font and language for all text in the document to Calibri and British English.
+    Sets font and language for all runs in the document.
     """
     for paragraph in doc.paragraphs:
         for run in paragraph.runs:
@@ -238,6 +237,7 @@ def set_font_for_all_text(doc, placeholders):
                         is_applicant_name = run.text == placeholders.get("{ApplicantName}", "")
                         apply_run_font_style(run, paragraph, is_applicant_name=is_applicant_name)
 
+
 def set_list_bullet_style(doc):
     """
     Defines the 'List Bullet' style if it doesn't exist.
@@ -251,12 +251,14 @@ def set_list_bullet_style(doc):
         list_bullet_style.paragraph_format.space_after = Pt(0)
         list_bullet_style.paragraph_format.space_before = Pt(0)
 
+
 def insert_paragraph_after(paragraph, text='', style=None):
-    """Insert a new paragraph after the given paragraph."""
+    """
+    Inserts a new paragraph after the given paragraph.
+    """
     new_p = OxmlElement('w:p')
     paragraph._element.addnext(new_p)
     new_paragraph = Paragraph(new_p, paragraph._parent)
-    # Ensure there is at least one run
     new_run = new_paragraph.add_run(text)
     if style is not None:
         new_paragraph.style = style
@@ -265,296 +267,283 @@ def insert_paragraph_after(paragraph, text='', style=None):
 
 def convert_lines_to_bullets(paragraph):
     """
-    Converts lines in a paragraph that should be bullet points into separate paragraphs with bullet style.
+    Converts multi‐line paragraphs into bullet‐styled paragraphs if lines start with bullet chars.
     """
     lines = paragraph.text.split('\n')
     if len(lines) > 1:
-        # Store the original style
         original_style = paragraph.style
-
-        # Remove the original paragraph's text
         paragraph.text = ''
-
-        prev_paragraph = paragraph
+        prev_para = paragraph
         for line in lines:
             line = line.strip()
             if not line:
-                continue  # Skip empty lines
-            # Determine the style for the new paragraph
+                continue
             if line.startswith('-') or line.startswith('•') or line.startswith('*'):
-                line = line.lstrip('-•*').strip()  # Remove bullet characters
+                text = line.lstrip('-•*').strip()
                 style = 'List Bullet'
             else:
+                text = line
                 style = original_style
-
-            # Insert new paragraph after the previous one
-            new_para = insert_paragraph_after(prev_paragraph, text=line, style=style)
-            prev_paragraph = new_para
+            new_para = insert_paragraph_after(prev_para, text=text, style=style)
+            prev_para = new_para
     else:
-        # If the paragraph is a single line starting with a bullet character
-        text = paragraph.text.strip()
-        if text.startswith('-') or text.startswith('•') or text.startswith('*'):
-            paragraph.text = text.lstrip('-•*').strip()  # Remove bullet characters
+        # Single line with a leading bullet
+        txt = paragraph.text.strip()
+        if txt.startswith('-') or txt.startswith('•') or txt.startswith('*'):
+            paragraph.text = txt.lstrip('-•*').strip()
             paragraph.style = 'List Bullet'
+
 
 def clean_duration_string(duration_str):
     """
-    Cleans the duration string by removing problematic characters.
+    Cleans the duration string by removing backslashes and non-printable characters.
     """
     if duration_str:
-        # Remove backslashes
         duration_str = duration_str.replace('\\', '')
-        # Remove any characters that are not in the printable ASCII range
-        duration_str = ''.join(c for c in duration_str if ord(c) >= 32 and ord(c) <= 126)
+        duration_str = ''.join(c for c in duration_str if 32 <= ord(c) <= 126)
     return duration_str.strip()
+
 
 def identify_date_format(date_str):
     """
-    Identifies the date format of a given date string.
+    Identifies a date format given a string like "Jan 2020" or "01/2021".
     """
     date_patterns = {
         '%d/%m/%Y': r'^\d{1,2}/\d{1,2}/\d{4}$',
         '%m/%Y': r'^\d{1,2}/\d{4}$',
-        '%b %Y': r'^[A-Za-z]{3} \d{4}$',  # e.g., Jan 2020
-        '%B %Y': r'^[A-Za-z]+ \d{4}$',    # e.g., January 2020
-        '%Y': r'^\d{4}$',
+        '%b %Y': r'^[A-Za-z]{3} \d{4}$',    # Jan 2020
+        '%B %Y': r'^[A-Za-z]+ \d{4}$',      # January 2020
+        '%Y': r'^\d{4}$'
     }
-
     for fmt, pattern in date_patterns.items():
         if re.match(pattern, date_str):
             return fmt
-    return None  # Format not identified
+    return None
+
 
 def parse_end_date(duration_str):
     """
-    Parses the end date from a duration string.
+    Parses the end date from a duration string. Returns datetime for sorting.
     """
     try:
         if not duration_str:
-            logging.debug("Duration string is empty or None.")
-            return datetime.min  # No duration provided, place at the end
+            return datetime.min
 
-        # Clean the duration string
         duration_str = clean_duration_string(duration_str)
-        logging.debug(f"Parsing duration string: '{duration_str}'")
-
-        # Handle "Present" or similar
         present_terms = ["Present", "Current", "Now", "Ongoing"]
-        duration_str = duration_str.strip()
-        # Split the duration into start and end
-        try:
-            logging.debug(f"Using regex pattern for splitting: r'\\s*[-–—]\\s*'")
-            parts = re.split(r'\s*[-–—]\s*', duration_str)
-        except re.error as regex_error:
-            logging.error(f"Regex error when splitting duration '{duration_str}': {regex_error}", exc_info=True)
-            return datetime.min  # On error, place at the end
-        logging.debug(f"Split parts: {parts}")
+        parts = re.split(r'\s*[-–—]\s*', duration_str)
         if len(parts) == 2:
-            end_str = parts[1]
+            end_str = parts[1].strip()
         elif len(parts) == 1:
-            # Only one date provided, could be end date
-            end_str = parts[0]
+            end_str = parts[0].strip()
         else:
-            logging.debug("Unable to split duration string properly.")
-            return datetime.min  # Unable to parse, place at the end
+            return datetime.min
 
-        end_str = end_str.strip()
-        logging.debug(f"End date string: '{end_str}'")
         if any(term.lower() == end_str.lower() for term in present_terms):
             return datetime.now()
+
+        date_fmt = identify_date_format(end_str)
+        if date_fmt:
+            return datetime.strptime(end_str, date_fmt)
         else:
-            # Identify the date format
-            date_format = identify_date_format(end_str)
-            if date_format:
-                end_date = datetime.strptime(end_str, date_format)
-                return end_date
-            else:
-                # If we cannot parse the date, place at the end
-                logging.debug(f"Could not identify date format for end date: '{end_str}'")
-                return datetime.min
+            return datetime.min
+
     except Exception as e:
         logging.error(f"Error parsing duration '{duration_str}': {e}", exc_info=True)
-        return datetime.min  # On error, place at the end
+        return datetime.min
+
 
 def sort_experiences(experience_data):
     """
-    Sorts the experiences from latest to oldest based on end date.
+    Sorts a list of experience objects by their parsed end date, newest first.
     """
     for item in experience_data:
         duration = item.get("Duration", "")
         try:
-            end_date = parse_end_date(duration)
-        except Exception as e:
-            logging.error(f"Error parsing end date for duration '{duration}': {e}", exc_info=True)
-            end_date = datetime.min
-        item['_end_date'] = end_date  # Store the end date in the item
+            item['_end_date'] = parse_end_date(duration)
+        except:
+            item['_end_date'] = datetime.min
 
-    # Now sort the experiences based on '_end_date' field
-    sorted_experiences = sorted(experience_data, key=lambda x: x.get('_end_date', datetime.min), reverse=True)
-
-    # Remove the temporary '_end_date' field
-    for item in sorted_experiences:
+    sorted_list = sorted(experience_data, key=lambda x: x.get('_end_date', datetime.min), reverse=True)
+    for item in sorted_list:
         item.pop('_end_date', None)
 
-    return sorted_experiences
+    return sorted_list
+
 
 def insert_skills_section(paragraph, skills_data):
     """
-    Inserts the skills section into the document at the position of the given paragraph.
+    Inserts the skills section as bullet points below the given paragraph.
     """
-    prev_paragraph = paragraph
+    prev_para = paragraph
     if not skills_data:
-        logging.warning("No skills data provided.")
         return
 
     for skill in skills_data:
         if not skill.strip():
-            continue  # Skip empty skills
-        bullet_paragraph = insert_paragraph_after(prev_paragraph, skill, style='List Bullet')
-        apply_run_font_style(bullet_paragraph.runs[0], bullet_paragraph)
-        prev_paragraph = bullet_paragraph
+            continue
+        bullet_para = insert_paragraph_after(prev_para, skill.strip(), style='List Bullet')
+        apply_run_font_style(bullet_para.runs[0], bullet_para)
+        prev_para = bullet_para
 
-    # Add a blank paragraph for spacing
-    blank_paragraph = insert_paragraph_after(prev_paragraph, '')
+    # Blank line for spacing
+    insert_paragraph_after(prev_para, "")
 
-    # Remove the original placeholder paragraph
-    p_element = paragraph._element
-    p_element.getparent().remove(p_element)
+    # Remove original placeholder
+    p_el = paragraph._element
+    p_el.getparent().remove(p_el)
+
 
 def insert_experience_section(paragraph, experience_data):
     """
-    Inserts the experience section into the document at the position of the given paragraph.
+    Inserts the experience section below the given paragraph, sorted newest-to-oldest.
     """
     if not experience_data:
-        logging.warning("No experience data provided.")
-        # Remove the original placeholder paragraph
-        p_element = paragraph._element
-        p_element.getparent().remove(p_element)
+        p_el = paragraph._element
+        p_el.getparent().remove(p_el)
         return
 
-    # Sort the experiences from latest to oldest
     experience_data = sort_experiences(experience_data)
+    prev_para = paragraph
 
-    prev_paragraph = paragraph
     for item in experience_data:
-        logging.debug(f"Inserting experience item: {item}")
         position = item.get("Position", "")
         company = item.get("Company", "")
         duration = item.get("Duration", "")
         responsibilities = item.get("Responsibilities", [])
 
-        # Skip if essential fields are missing
         if not position and not company:
-            logging.warning("Experience item missing 'Position' and 'Company'; skipping.")
             continue
 
-        # Create the role title with bold formatting
-        role_title_parts = [position]
+        title_parts = [position]
         if company:
-            role_title_parts.append(f"at {company}")
+            title_parts.append(f"at {company}")
         if duration:
-            role_title_parts.append(f"({duration})")
-        role_title = ' '.join(role_title_parts)
+            title_parts.append(f"({duration})")
+        title = ' '.join(title_parts)
 
-        role_paragraph = insert_paragraph_after(prev_paragraph, '')
-        role_paragraph.style = 'Normal'
-        role_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
-        role_run = role_paragraph.add_run(role_title)
+        role_para = insert_paragraph_after(prev_para, "")
+        role_para.style = 'Normal'
+        role_para.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+        role_run = role_para.add_run(title)
         role_run.bold = True
-        apply_run_font_style(role_run, role_paragraph)
+        apply_run_font_style(role_run, role_para)
 
-        prev_paragraph = role_paragraph
+        prev_para = role_para
 
-        # Add responsibilities as bullet points
         if isinstance(responsibilities, list):
-            for responsibility in responsibilities:
-                bullet_paragraph = insert_paragraph_after(prev_paragraph, responsibility, style='List Bullet')
-                apply_run_font_style(bullet_paragraph.runs[0], bullet_paragraph)
-                prev_paragraph = bullet_paragraph
-        elif isinstance(responsibilities, str):
-            bullet_paragraph = insert_paragraph_after(prev_paragraph, responsibilities, style='List Bullet')
-            apply_run_font_style(bullet_paragraph.runs[0], bullet_paragraph)
-            prev_paragraph = bullet_paragraph
+            for resp in responsibilities:
+                bullet_para = insert_paragraph_after(prev_para, resp.strip(), style='List Bullet')
+                apply_run_font_style(bullet_para.runs[0], bullet_para)
+                prev_para = bullet_para
+        elif isinstance(responsibilities, str) and responsibilities.strip():
+            bullet_para = insert_paragraph_after(prev_para, responsibilities.strip(), style='List Bullet')
+            apply_run_font_style(bullet_para.runs[0], bullet_para)
+            prev_para = bullet_para
 
-        # Add a blank paragraph for spacing
-        blank_paragraph = insert_paragraph_after(prev_paragraph, '')
-        prev_paragraph = blank_paragraph
+        # Blank line for spacing
+        prev_para = insert_paragraph_after(prev_para, "")
 
-    # Remove the original placeholder paragraph
-    p_element = paragraph._element
-    p_element.getparent().remove(p_element)
+    # Remove original placeholder
+    p_el = paragraph._element
+    p_el.getparent().remove(p_el)
+
+
+def insert_certifications_section(paragraph, cert_list):
+    """
+    Inserts the Certifications section as bullet points below the given paragraph.
+    """
+    prev_para = paragraph
+    if not cert_list:
+        return
+
+    for cert in cert_list:
+        if not cert.strip():
+            continue
+        bullet_para = insert_paragraph_after(prev_para, cert.strip(), style='List Bullet')
+        apply_run_font_style(bullet_para.runs[0], bullet_para)
+        prev_para = bullet_para
+
+    # Blank line for spacing
+    insert_paragraph_after(prev_para, "")
+
+    # Remove original placeholder
+    p_el = paragraph._element
+    p_el.getparent().remove(p_el)
+
 
 def create_document(data, output_path):
     """
     Creates a Word document using the template and fills it with the extracted data.
 
     Parameters:
-    - data (dict): The data to populate in the document.
-    - output_path (str): The full path where the document will be saved.
+      - data (dict): The data to populate in the document (must include "Certifications").
+      - output_path (str): Where to save the final .docx.
     """
     template_path = 'Documents/Template/blank_template.docx'
 
     # Ensure output directory exists
-    output_directory = os.path.dirname(output_path)
-    if not os.path.exists(output_directory):
-        os.makedirs(output_directory)
+    output_dir = os.path.dirname(output_path)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    # Load the template document
+    # Load the template
     try:
         doc = Document(template_path)
     except Exception as e:
         logging.error(f"Failed to load template: {e}", exc_info=True)
         raise
 
-    # Set the default font, heading style, and language
+    # Set fonts, heading styles, language, and list style
     set_document_font(doc)
     set_heading_style(doc)
-    set_document_defaults_language(doc)  # Set document-wide default language
-    set_styles_language(doc)  # Set language for all styles
+    set_document_defaults_language(doc)
+    set_styles_language(doc)
     set_list_bullet_style(doc)
 
-    # Prepare placeholders, remove 'Skills' and 'Experience' since we'll handle them separately
+    # Prepare placeholders (Skills/Experience/Certs handled separately)
     placeholders = {
         "{ApplicantName}": data.get("ApplicantName", ""),
         "{Role}": data.get("Role", ""),
         "{SecurityClearance}": data.get("SecurityClearance", "Not specified"),
         "{Summary}": data.get("Summary", ""),
-        # "{Skills}": data.get("Skills", ""),  # Removed this line
-        # "{Experience}": data.get("Experience", ""),  # Already removed
         "{Education}": data.get("Education", "")
+        # Note: {Skills}, {Experience}, {Certifications} are handled by custom insertion functions
     }
 
     logging.info("Starting placeholder replacement.")
-    logging.debug(f"Skills data in create_document: {data.get('Skills', [])}")
-    logging.debug(f"Experience data in create_document: {data.get('Experience', [])}")
+    logging.debug(f"Skills: {data.get('Skills', [])}")
+    logging.debug(f"Experience: {data.get('Experience', [])}")
+    logging.debug(f"Certifications: {data.get('Certifications', [])}")
 
-    # Replace placeholders in paragraphs
+    # 1) Replace paragraph‐based placeholders and insert lists
     for paragraph in doc.paragraphs:
         if '{Skills}' in paragraph.text:
-            # Insert the skills section here
             insert_skills_section(paragraph, data.get('Skills', []))
-            # No need to remove the placeholder paragraph here (handled in insert_skills_section)
+
         elif '{Experience}' in paragraph.text:
-            # Insert the experience section here
             insert_experience_section(paragraph, data.get('Experience', []))
-            # No need to remove the placeholder paragraph here (handled in insert_experience_section)
+
+        elif '{Certifications}' in paragraph.text:
+            insert_certifications_section(paragraph, data.get('Certifications', []))
+
         else:
             replace_placeholders_in_paragraph(paragraph, placeholders)
             convert_lines_to_bullets(paragraph)
 
-    # Replace placeholders in tables
+    # 2) Replace placeholders inside tables
     for table in doc.tables:
         replace_placeholders_in_table(table, placeholders, data)
 
-    # Replace header placeholders and apply 'Style 1'
+    # 3) Replace header placeholders ([Summary], [Certifications], etc.)
     replace_headers(doc)
 
     logging.info("Placeholder replacement completed.")
 
-    # Set font and language for all text after placeholder replacement
+    # 4) Ensure correct font and language for all runs
     set_font_for_all_text(doc, placeholders)
 
-    # Save the filled-in document
+    # 5) Save the document
     try:
         doc.save(output_path)
         logging.info(f"Document saved to {output_path}")
