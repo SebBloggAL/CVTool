@@ -1,17 +1,17 @@
-# formatter.py
+#formatter.py
 
+import re
 import logging
 
 def format_data(raw_data):
     """
     Formats the raw data extracted from the CV to match the template requirements.
     """
-    # Retrieve Security Clearance and handle null or empty values
-    security_clearance = raw_data.get("Security Clearance", "Not specified")
+    # Handle Security Clearances
+    security_clearance = raw_data.get("SecurityClearance", "Not specified")
     if not security_clearance:
         security_clearance = "Not specified"
-    
-    # Use .get() with default values to handle missing fields
+
     formatted_data = {
         "ApplicantName": raw_data.get("ApplicantName", "Name not provided"),
         "Role": raw_data.get("Role", "Role not specified"),
@@ -19,31 +19,31 @@ def format_data(raw_data):
         "Summary": raw_data.get("Summary", "Summary not provided"),
         "Skills": format_skills(raw_data.get("Skills", [])),
         "Experience": format_experience(raw_data.get("Experience", [])),
-        "Education": format_education(raw_data.get("Education", []))
+        "Education": format_education(raw_data.get("Education", [])),
+        "Certifications": format_certifications(raw_data.get("Certifications", []))
     }
+
     logging.debug(f"Formatted data: {formatted_data}")
     return formatted_data
 
+
 def format_skills(skills_data):
     """
-    Formats the skills data, returning it as a list of skills.
+    Formats the skills data into a list of individual skills.
     """
     if isinstance(skills_data, list):
         return [skill.strip() for skill in skills_data if skill.strip()]
     elif isinstance(skills_data, str):
-        # Split the string by commas or newlines and strip whitespace
-        skills_list = [skill.strip() for skill in skills_data.replace('\n', ',').split(',') if skill.strip()]
-        return skills_list
+        # Split on commas or newlines
+        return [skill.strip() for skill in re.split(r'[\n,]', skills_data) if skill.strip()]
     else:
         logging.warning("Unexpected format for skills data.")
         return []
 
 
-
 def format_experience(experience_data):
     """
-    Formats the experience data, returning it as a list of dictionaries.
-    Each dictionary contains the keys: Position, Company, Duration, Responsibilities.
+    Formats the experience data into a list of dictionaries, each with Position, Company, Duration, Responsibilities.
     """
     formatted_experiences = []
     if isinstance(experience_data, list):
@@ -56,7 +56,7 @@ def format_experience(experience_data):
             }
             formatted_experiences.append(formatted_item)
     elif isinstance(experience_data, dict):
-        # If experience_data is a single dictionary, wrap it in a list
+        # Single object → wrap in list
         formatted_item = {
             "Position": experience_data.get("Position", ""),
             "Company": experience_data.get("Company", ""),
@@ -65,14 +65,13 @@ def format_experience(experience_data):
         }
         formatted_experiences.append(formatted_item)
     else:
-        # Handle other cases or return an empty list
         logging.warning("Unexpected format for experience data.")
     return formatted_experiences
 
 
 def format_education(education_data):
     """
-    Formats the education data, only including Institution and Duration if they are specified.
+    Formats the education data as a single string with entries separated by two line breaks.
     """
     formatted_education = ""
     if isinstance(education_data, list):
@@ -80,21 +79,16 @@ def format_education(education_data):
             degree = item.get("Degree", "")
             institution = item.get("Institution", "")
             duration = item.get("Duration", "")
-            
-            # Initialize the entry with Degree
+
             entry = f"{degree}"
-            
-            # Append Institution if it's specified and not "Not specified"
             if institution and institution.lower() != "not specified":
                 entry += f" at {institution}"
-            
-            # Append Duration if it's specified and not "Not specified"
             if duration and duration.lower() != "not specified":
                 entry += f" ({duration})"
-            
-            # Add the formatted entry to the overall formatted education string
+
             formatted_education += f"{entry}\n\n"
     elif isinstance(education_data, dict):
+        # Fallback: flatten a dict (unlikely if prompt is followed)
         for key, value in education_data.items():
             formatted_education += f"{key}\n"
             if isinstance(value, list):
@@ -105,5 +99,19 @@ def format_education(education_data):
             formatted_education += "\n"
     elif isinstance(education_data, str):
         formatted_education += education_data
+
     return formatted_education.strip()
 
+
+def format_certifications(cert_data):
+    """
+    Formats the certifications data as a list of strings.
+    """
+    if isinstance(cert_data, list):
+        return [item.strip() for item in cert_data if item.strip()]
+    elif isinstance(cert_data, str):
+        # Split on commas or newlines
+        return [s.strip() for s in re.split(r'[\n,]', cert_data) if s.strip()]
+    else:
+        logging.warning("Unexpected format for certifications data.")
+        return []
