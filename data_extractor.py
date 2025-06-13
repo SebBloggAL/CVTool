@@ -141,7 +141,7 @@ def call_openai_api(prompt, max_tokens, call_type=""):
     """
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
+            model="gpt-4.1-nano",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
             temperature=0
