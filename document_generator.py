@@ -353,24 +353,6 @@ def parse_end_date(duration_str):
         return datetime.min
 
 
-def sort_experiences(experience_data):
-    """
-    Sorts a list of experience objects by their parsed end date, newest first.
-    """
-    for item in experience_data:
-        duration = item.get("Duration", "")
-        try:
-            item['_end_date'] = parse_end_date(duration)
-        except:
-            item['_end_date'] = datetime.min
-
-    sorted_list = sorted(experience_data, key=lambda x: x.get('_end_date', datetime.min), reverse=True)
-    for item in sorted_list:
-        item.pop('_end_date', None)
-
-    return sorted_list
-
-
 def insert_skills_section(paragraph, skills_data):
     """
     Inserts the skills section as bullet points below the given paragraph.
@@ -403,7 +385,6 @@ def insert_experience_section(paragraph, experience_data):
         p_el.getparent().remove(p_el)
         return
 
-    experience_data = sort_experiences(experience_data)
     prev_para = paragraph
 
     for item in experience_data:
