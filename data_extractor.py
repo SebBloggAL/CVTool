@@ -75,7 +75,7 @@ CV TEXT:
 
     response_text = call_openai_api(
         prompt_basic,
-        max_tokens=1500,
+        max_tokens=4500,
         call_type="Basic Info Extraction"
     )
     return parse_json_response(response_text)
