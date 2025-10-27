@@ -43,6 +43,11 @@ def extract_basic_info(text):
 You are an AI assistant that extracts basic information from a CV with explicit markers.
 
 IMPORTANT INSTRUCTIONS:
+- Do not summarise, paraphrase, or compress any text.
+- Copy wording exactly as it appears in the CV.
+- If a field spans multiple lines, keep the original line breaks as \n.
+
+
 1. Output ONLY one valid JSON object—no explanations, no extra text.
 2. Do NOT wrap in code fences (` or ```).
 3. Must be fully valid JSON:
