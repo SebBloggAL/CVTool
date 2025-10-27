@@ -1,7 +1,8 @@
 # experience_parser.py
 import re
+import logging
 
-# Broad, realistic heading variants (case- and bracket-insensitive)
+# Treat "Career Summary" as the Experience section heading too.
 EXPERIENCE_HEADINGS = {
     "experience",
     "professional experience",
@@ -9,31 +10,45 @@ EXPERIENCE_HEADINGS = {
     "employment history",
     "career history",
     "relevant experience",
-    "career summary",
+    "career summary",            # <-- NEW
     "[experience]",
 }
+
+# Make sure we stop before skills of any kind (incl. "Technical Skills")
 STOP_HEADINGS = {
     "education",
     "certifications",
     "skills",
+    "technical skills",          # <-- NEW
     "summary",
     "projects",
     "publications",
     "[education]",
     "[certifications]",
     "[skills]",
-    "technical skills",
     "[summary]",
     "[projects]",
     "[publications]",
 }
 
 MARKER_START = "=== Experience ==="
+MARKER_PATTERN = re.compile(r"===\s+[A-Za-z ]+\s+===")
+
+
+def _first_stop_index(lines):
+    """Return index of first line that looks like a stop heading, else None."""
+    for idx, ln in enumerate(lines):
+        t = re.sub(r'[\[\]]', '', ln).strip().lower()
+        if t in STOP_HEADINGS:
+            return idx
+    return None
 
 
 def _slice_between_markers(text: str):
     """
-    Return lines between '=== Experience ===' and the next '=== ... ===' marker, if present.
+    Return lines between '=== Experience ===' and the next '=== ... ===' marker.
+    Additionally, if a STOP heading (e.g., 'Technical Skills') appears before the next marker,
+    stop there to avoid pulling Skills into Experience.
     """
     if not text:
         return []
@@ -42,27 +57,32 @@ def _slice_between_markers(text: str):
     if start_idx == -1:
         return []
 
-    # Find the next marker after Experience
+    # Next explicit marker after Experience
     next_marker = None
-    for m in re.finditer(r"===\s+[A-Za-z ]+\s+===", text):
+    for m in MARKER_PATTERN.finditer(text):
         if m.start() > start_idx:
             next_marker = m.start()
             break
 
     chunk = text[start_idx + len(MARKER_START):] if next_marker is None else text[start_idx + len(MARKER_START): next_marker]
-    return [ln.strip() for ln in chunk.splitlines() if ln.strip()]
+    lines = [ln.strip() for ln in chunk.splitlines() if ln.strip()]
+
+    # Early stop inside the chunk if we see a STOP heading like "Technical Skills"
+    stop_at = _first_stop_index(lines)
+    if stop_at is not None:
+        lines = lines[:stop_at]
+
+    return lines
 
 
 def _slice_by_headings(text: str):
-    """
-    Fallback: detect by broad headings without markers.
-    """
+    """Fallback: detect by broad headings without markers."""
     if not text:
         return []
 
     lines = [ln.strip() for ln in text.splitlines()]
 
-    # Find start
+    # Find start (now includes "career summary")
     start = None
     for i, ln in enumerate(lines):
         t = re.sub(r'[\[\]]', '', ln).strip().lower()
@@ -72,7 +92,6 @@ def _slice_by_headings(text: str):
     if start is None:
         return []
 
-    # Find end
     end = len(lines)
     for j in range(start, len(lines)):
         t = re.sub(r'[\[\]]', '', lines[j]).strip().lower()
@@ -93,5 +112,9 @@ def extract_experience_lines(full_text: str):
     """
     lines = _slice_between_markers(full_text)
     if lines:
+        logging.debug(f"[experience_parser] Marker-based Experience lines: {len(lines)}")
         return lines
-    return _slice_by_headings(full_text)
+
+    lines = _slice_by_headings(full_text)
+    logging.debug(f"[experience_parser] Heading-based Experience lines: {len(lines)}")
+    return lines
