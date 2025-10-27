@@ -1,7 +1,7 @@
 # experience_parser.py
 import re
 
-# Broaden heading variants substantially
+# Broad, realistic heading variants (case- and bracket-insensitive)
 EXPERIENCE_HEADINGS = {
     "experience",
     "professional experience",
@@ -27,11 +27,12 @@ STOP_HEADINGS = {
 }
 
 MARKER_START = "=== Experience ==="
-# We'll stop at the next "=== <Section> ===" marker if present.
 
 
 def _slice_between_markers(text: str):
-    """Return lines between '=== Experience ===' and the next '=== ... ===' marker, if present."""
+    """
+    Return lines between '=== Experience ===' and the next '=== ... ===' marker, if present.
+    """
     if not text:
         return []
 
@@ -39,30 +40,27 @@ def _slice_between_markers(text: str):
     if start_idx == -1:
         return []
 
-    # Find the next marker after the Experience one
+    # Find the next marker after Experience
     next_marker = None
     for m in re.finditer(r"===\s+[A-Za-z ]+\s+===", text):
         if m.start() > start_idx:
             next_marker = m.start()
             break
 
-    if next_marker is None:
-        chunk = text[start_idx + len(MARKER_START):]
-    else:
-        chunk = text[start_idx + len(MARKER_START): next_marker]
-
-    lines = [ln.strip() for ln in chunk.splitlines() if ln.strip()]
-    return lines
+    chunk = text[start_idx + len(MARKER_START):] if next_marker is None else text[start_idx + len(MARKER_START): next_marker]
+    return [ln.strip() for ln in chunk.splitlines() if ln.strip()]
 
 
 def _slice_by_headings(text: str):
-    """Fallback: use broad set of headings (case/brace-insensitive)."""
+    """
+    Fallback: detect by broad headings without markers.
+    """
     if not text:
         return []
 
     lines = [ln.strip() for ln in text.splitlines()]
 
-    # find start
+    # Find start
     start = None
     for i, ln in enumerate(lines):
         t = re.sub(r'[\[\]]', '', ln).strip().lower()
@@ -72,7 +70,7 @@ def _slice_by_headings(text: str):
     if start is None:
         return []
 
-    # find end
+    # Find end
     end = len(lines)
     for j in range(start, len(lines)):
         t = re.sub(r'[\[\]]', '', lines[j]).strip().lower()
@@ -88,7 +86,7 @@ def extract_experience_lines(full_text: str):
     Returns lines from the Experience section verbatim (no summarisation).
 
     Strategy:
-      1) Prefer marker-based slice if '=== Experience ===' exists (aligned to LLM prompt).
+      1) Prefer marker-based slice if '=== Experience ===' exists.
       2) Otherwise, fall back to heading-based slice with broad variants.
     """
     lines = _slice_between_markers(full_text)
