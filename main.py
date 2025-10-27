@@ -9,42 +9,27 @@ from data_extractor import extract_cv_data
 from formatter import format_data
 from document_generator import create_document
 from file_handler import validate_file
+from experience_parser import extract_experience_lines  # robust slice w/ markers & fallbacks
 
 
-def _extract_experience_lines_verbatim(full_text: str):
+def _mark_sections(text: str) -> str:
     """
-    Return the lines from the Experience section *verbatim* (no model involvement).
-    We look for a start heading ("Experience" variants) and stop at the next major heading.
+    Insert the same explicit section markers used by data_extractor so our verbatim
+    extractor can slice *exactly* the Experience block the LLM sees.
     """
-    experience_headings = {"experience", "professional experience", "[experience]"}
-    stop_headings = {
-        "education", "certifications", "skills", "summary",
-        "[education]", "[certifications]", "[skills]", "[summary]"
-    }
+    if not text:
+        return ""
 
-    # Keep original line breaks to avoid collapsing bullets
-    lines = [ln.strip() for ln in (full_text or "").splitlines()]
+    sections = ["Summary", "Skills", "Experience", "Education", "Certifications"]
+    marked = text
 
-    # Find the start of the experience section
-    start = None
-    for i, ln in enumerate(lines):
-        t = re.sub(r'[\[\]]', '', ln).strip().lower()
-        if t in experience_headings:
-            start = i + 1
-            break
-    if start is None:
-        return []
+    for sec in sections:
+        # Add markers only when a standalone heading line appears (various variants)
+        # Examples: "Experience", "[Experience]", "WORK EXPERIENCE", "Professional Experience"
+        pattern = rf'(^|\n)\s*(\[{sec}\]|{sec}|(?i:{sec})|(?i:work\s+experience)|(?i:employment\s+history)|(?i:professional\s+experience))\s*(\n|$)'
+        marked = re.sub(pattern, lambda m: f'\n=== {sec} ===\n', marked, flags=re.IGNORECASE)
 
-    # Find the end (next major section)
-    end = len(lines)
-    for j in range(start, len(lines)):
-        t = re.sub(r'[\[\]]', '', lines[j]).strip().lower()
-        if t in stop_headings:
-            end = j
-            break
-
-    # Keep non-empty lines only
-    return [ln for ln in lines[start:end] if ln]
+    return marked
 
 
 def _structure_experience_from_lines(exp_lines):
@@ -53,30 +38,62 @@ def _structure_experience_from_lines(exp_lines):
     without rewriting or shortening any bullet text.
 
     Heuristic:
-      - A line starting with a bullet marker (•, -, *) is a responsibility.
-      - Any non-bullet line starts (or updates) the current role header (stored in "Position").
-      - We DO NOT attempt to split 'Position / Company / Duration' from the header to avoid
-        accidental abbreviation; the header is kept as-is in Position.
+      - Bullet lines start with common markers: •, -, *, –, —, ·, ▪, ◦, numbers like '1.' etc.
+      - The first non-bullet line after a blank or at the start is treated as a role header (Position).
+      - We keep the header verbatim inside 'Position'. We do NOT attempt to split Company/Duration.
+      - If we never see a header, we put all bullets under a single item with an empty Position.
     """
     experience_struct = []
     current = {"Position": "", "Company": "", "Duration": "", "Responsibilities": []}
 
-    bullet_re = re.compile(r'^\s*[•\-\*]\s+')
+    bullet_re = re.compile(r'^\s*(?:[•\-\*\u2013\u2014\u00B7\u2219\u25AA\u25E6]|\d+[\.\)]|[A-Za-z]\))\s+')
 
-    for ln in exp_lines:
+    seen_any_header = False
+    pending_header = None
+
+    def flush_current():
+        nonlocal current, experience_struct
+        if current["Position"] or current["Responsibilities"]:
+            experience_struct.append(current)
+        current = {"Position": "", "Company": "", "Duration": "", "Responsibilities": []}
+
+    prev_blank = True  # treat the very start as a boundary
+
+    for raw in exp_lines:
+        ln = raw.rstrip()
+
+        if not ln:
+            prev_blank = True
+            continue
+
         if bullet_re.match(ln):
-            # Responsibility bullet: strip the marker, keep the text verbatim
+            # Responsibility bullet: strip marker, keep verbatim remainder
             text = bullet_re.sub('', ln).strip()
             current["Responsibilities"].append(text)
-        else:
-            # New header (role line). If we already have an item accumulating, push it.
-            # Keep the header verbatim (store in Position to avoid any lossy parsing).
-            if any(v for v in current.values()):
-                experience_struct.append(current)
-            current = {"Position": ln.strip(), "Company": "", "Duration": "", "Responsibilities": []}
+            prev_blank = False
+            continue
 
-    if any(v for v in current.values()):
-        experience_struct.append(current)
+        # Non-bullet line — likely a role header
+        # Start a new role if we already have content
+        if current["Position"] or current["Responsibilities"]:
+            flush_current()
+
+        current["Position"] = ln.strip()
+        seen_any_header = True
+        prev_blank = False
+
+    flush_current()
+
+    # Fallback: if we never found a header but there are lines,
+    # put everything as responsibilities under a single (empty-position) role.
+    if not seen_any_header and not experience_struct:
+        if exp_lines:
+            return [{
+                "Position": "",
+                "Company": "",
+                "Duration": "",
+                "Responsibilities": [re.sub(bullet_re, '', x).strip() for x in exp_lines if x.strip()]
+            }]
 
     return experience_struct
 
@@ -104,24 +121,41 @@ def main(file_path, output_directory='Documents/Processed'):
         text = extract_text(file_path)
         logging.info("Text extraction completed.")
 
-        # === CHANGE: deterministically capture Experience *before* LLM to avoid abbreviation
-        exp_lines_verbatim = _extract_experience_lines_verbatim(text)
+        # === NEW: mark sections so both the LLM and verbatim path have aligned boundaries
+        marked_text = _mark_sections(text)
+
+        # === deterministically capture Experience *before* or alongside LLM to avoid abbreviation
+        # Prefer marker-based slice; fall back to heading-based slice if markers not present.
+        exp_lines_verbatim = extract_experience_lines(marked_text)
+        if not exp_lines_verbatim:
+            # Fallback to unmarked text (broad heading variants)
+            exp_lines_verbatim = extract_experience_lines(text)
+
         exp_struct_verbatim = _structure_experience_from_lines(exp_lines_verbatim)
         logging.debug(f"Verbatim Experience (lines): {exp_lines_verbatim}")
         logging.debug(f"Verbatim Experience (structured): {exp_struct_verbatim}")
 
         # Extract the rest of the data using the LLM (basic fields, summary, skills, education, etc.)
-        raw_data = extract_cv_data(text)
+        raw_data = extract_cv_data(marked_text)
         logging.debug(f"Raw data extracted (pre-override): {raw_data}")
 
-        # === CHANGE: override LLM-produced Experience with verbatim structured version
+        # === IMPORTANT: always override LLM-produced Experience with verbatim structured version
+        # If our struct is empty but we *do* have lines, wrap them as a single role.
+        if not exp_struct_verbatim and exp_lines_verbatim:
+            exp_struct_verbatim = [{
+                "Position": "",
+                "Company": "",
+                "Duration": "",
+                "Responsibilities": exp_lines_verbatim[:]  # keep every line verbatim
+            }]
+
         if exp_struct_verbatim:
             raw_data["Experience"] = exp_struct_verbatim
             logging.debug("Overwrote LLM 'Experience' with verbatim experience from source document.")
 
         logging.info("Data extraction completed.")
 
-        # Format the data (formatter keeps bullet text; order is preserved unless you enabled sorting there)
+        # Format the data (formatter will sort roles; bullets remain verbatim)
         data = format_data(raw_data)
         logging.debug(f"Formatted data: {data}")
         logging.info("Data formatting completed.")
