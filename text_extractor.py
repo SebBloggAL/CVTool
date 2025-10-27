@@ -63,13 +63,20 @@ def normalize_text(text: str) -> str:
     """
     Normalize extracted text:
       1) Remove hyphenation at line breaks
-      2) Merge single line-breaks into spaces
-      3) Collapse multiple blank lines to two
+      2) Keep single line breaks (so bullets/lines survive)
+      3) Collapse 3+ blank lines into two
+      4) Normalise Windows newlines
     """
+    # 0) Normalise \r\n
+    text = text.replace('\r\n', '\n')
+
     # 1) Remove hyphens at line ends
     text = re.sub(r'-\n', '', text)
-    # 2) Merge lone line-breaks into spaces (but keep paragraphs)
-    text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
-    # 3) Collapse 3+ line-breaks into two
+
+    # 2) DO NOT merge single line-breaks; keep them
+    # (Your previous regex turned lines into one paragraph.)
+
+    # 3) Collapse 3+ consecutive blanks into two
     text = re.sub(r'\n{3,}', '\n\n', text)
+
     return text
