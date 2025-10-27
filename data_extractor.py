@@ -27,12 +27,23 @@ def extract_cv_data(text):
             flags=re.IGNORECASE
         )
 
-    # 2) Extract JSON in two passes: basic info + body (Experience/Education/Certs)
+    # 2) Extract JSON in two passes: basic info + body (Education/Certs)
     data_basic = extract_basic_info(text)
-    data_body = extract_experience_education_and_certifications(text)
 
-    # Combine and return
-    return {**data_basic, **data_body}
+    # Keep asking the LLM for Education/Certs, but NOT Experience
+    data_body = extract_experience_education_and_certifications(text) or {}
+    education = data_body.get("Education", [])
+    certifications = data_body.get("Certifications", [])
+
+    # IMPORTANT: Never accept the LLM's Experience here
+    combined = {
+        **data_basic,
+        "Education": education,
+        "Certifications": certifications,
+        # "Experience" intentionally omitted; main() will inject verbatim Experience
+    }
+    return combined
+
 
 
 def extract_basic_info(text):
