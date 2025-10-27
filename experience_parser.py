@@ -9,6 +9,7 @@ EXPERIENCE_HEADINGS = {
     "employment history",
     "career history",
     "relevant experience",
+    "career summary",
     "[experience]",
 }
 STOP_HEADINGS = {
@@ -21,6 +22,7 @@ STOP_HEADINGS = {
     "[education]",
     "[certifications]",
     "[skills]",
+    "technical skills",
     "[summary]",
     "[projects]",
     "[publications]",
