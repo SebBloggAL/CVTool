@@ -8,10 +8,10 @@ on:
       target:
         description: "Which environment to deploy to?"
         required: false
-        default: "develop"   # so manual runs go to dev first
+        default: "Development"   # so manual runs go to dev first
         type: choice
         options:
-          - develop
+          - Development
           - master
 
 jobs:
@@ -37,14 +37,14 @@ jobs:
   # ---------- DEV DEPLOY ----------
   deploy-dev:
     # run if:
-    # 1) this was a push to develop  OR
-    # 2) this was a manual run and user chose "develop"
+    # 1) this was a push to Development  OR
+    # 2) this was a manual run and user chose "Development"
     if: >
-      github.ref == 'refs/heads/develop' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'develop')
+      github.ref == 'refs/heads/Development' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'Development')
     runs-on: ubuntu-latest
     needs: build
-    environment: develop
+    environment: Development
     permissions:
       id-token: write
       contents: read
@@ -95,4 +95,5 @@ jobs:
         with:
           app-name: cv-reformatting-tool
           package: release.zip
+
 
