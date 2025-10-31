@@ -12,6 +12,7 @@ EXPERIENCE_HEADINGS = {
     "relevant experience",
     "career summary",            # <-- NEW
     "[experience]",
+    "career"
 }
 
 # Make sure we stop before skills of any kind (incl. "Technical Skills")
