@@ -27,20 +27,18 @@ def extract_cv_data(text):
             flags=re.IGNORECASE
         )
 
-    # 2) Extract JSON in two passes: basic info + body (Education/Certs)
+    # 2) Extract JSON in two passes: basic info + body (Education/Certs only)
     data_basic = extract_basic_info(text)
-
-    # Keep asking the LLM for Education/Certs, but NOT Experience
     data_body = extract_experience_education_and_certifications(text) or {}
+
     education = data_body.get("Education", [])
     certifications = data_body.get("Certifications", [])
 
-    # IMPORTANT: Never accept the LLM's Experience here
+    # IMPORTANT: Never accept the LLM's Experience here (verbatim path owns it)
     combined = {
         **data_basic,
         "Education": education,
         "Certifications": certifications,
-        # "Experience" intentionally omitted; main() will inject verbatim Experience
     }
     return combined
 
@@ -56,8 +54,7 @@ You are an AI assistant that extracts basic information from a CV with explicit 
 IMPORTANT INSTRUCTIONS:
 - Do not summarise, paraphrase, or compress any text.
 - Copy wording exactly as it appears in the CV.
-- If a field spans multiple lines, keep the original line breaks as \n.
-
+- If a field spans multiple lines, keep the original line breaks as \\n.
 
 1. Output ONLY one valid JSON object—no explanations, no extra text.
 2. Do NOT wrap in code fences (` or ```).
@@ -73,7 +70,7 @@ EXAMPLE STRUCTURE:
   "ApplicantName": "Jane Doe",
   "Role": "DevOps Engineer",
   "SecurityClearance": "TopSecret",
-  "Summary": "Cloud infrastructure specialist…",
+  "Summary": "....",
   "Skills": ["Terraform", "Kubernetes"]
 }}
 
@@ -91,8 +88,50 @@ CV TEXT:
 
     response_text = call_openai_api(
         prompt_basic,
-        max_tokens=4500,
+        max_tokens=3000,
         call_type="Basic Info Extraction"
+    )
+    return parse_json_response(response_text)
+
+
+def extract_experience_education_and_certifications(text):
+    """
+    Extracts Education and Certifications (we will IGNORE Experience from the model).
+    """
+    prompt = f"""
+You are an AI assistant that extracts Education and Certifications from a CV with explicit markers.
+
+OUTPUT a single JSON object—no explanations, no extra text, no code fences.
+DO NOT summarise or rewrite content; copy the wording exactly.
+
+Use the following rules:
+- Everything between "=== Education ===" and "=== Certifications ===" → "Education"
+- Everything after "=== Certifications ===" → "Certifications"
+- Return "Experience" as an empty array (we will supply Experience separately).
+
+STRUCTURE:
+{{
+  "Experience": [],
+  "Education": [
+    {{
+      "Degree": "...",
+      "Institution": "...",
+      "Duration": "..."
+    }}
+  ],
+  "Certifications": [
+    "Certification A"
+  ]
+}}
+
+CV TEXT:
+{text}
+"""
+
+    response_text = call_openai_api(
+        prompt,
+        max_tokens=2500,
+        call_type="Exp_Edu_Cert Extraction"
     )
     return parse_json_response(response_text)
 
