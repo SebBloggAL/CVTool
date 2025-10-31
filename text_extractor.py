@@ -3,7 +3,7 @@
 import os
 import re
 import logging
-import pdfplumber
+import pdfminer
 from pdfminer.high_level import extract_text as extract_pdf_text
 import docx2txt
 
