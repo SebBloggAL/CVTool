@@ -9,116 +9,188 @@ from data_extractor import extract_cv_data
 from formatter import format_data
 from document_generator import create_document
 from file_handler import validate_file
-from experience_parser import extract_experience_lines
-from section_config import SECTION_SYNONYMS
+from experience_parser import extract_experience_lines  # robust slice
 
-# --- Regex for dates and bullets used in structuring ---
-MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*"
-DATE_TOKEN = rf"(?:{MONTH}\s+\d{{4}}|\d{{1,2}}/\d{{4}}|\d{{4}})"
-PRESENT = r"(?:Present|Current|Now)"
-RANGE_SEP = r"[–—-]"  # en/em/hyphen
-DURATION_LINE_RE = re.compile(rf"^\s*{DATE_TOKEN}\s*{RANGE_SEP}\s*(?:{PRESENT}|{DATE_TOKEN})(?:.*)?$", re.IGNORECASE)
-PAREN_DURATION_RE = re.compile(rf"\((\s*{DATE_TOKEN}\s*{RANGE_SEP}\s*(?:{PRESENT}|{DATE_TOKEN})\s*)\)", re.IGNORECASE)
-HEADER_DASH_RE = re.compile(r".+\s[–—-]\s.+")
-BULLET_RE = re.compile(r'^\s*(?:[•\-\*\u2013\u2014\u00B7\u2219\u25AA\u25E6]|\d+[\.\)]|[A-Za-z]\))\s+')
-
-# Security clearance fallback
-CLEARANCE_RE = re.compile(r'\b(DV|SC|CTC|BPSS)\s*(?:cleared|clearance)?\b', re.IGNORECASE)
 
 def _mark_sections(text: str) -> str:
     """
-    Insert explicit section markers using SECTION_SYNONYMS so LLM and slicers see aligned boundaries.
+    Insert explicit section markers with sensible synonyms so that both the LLM
+    and our verbatim slicer see aligned boundaries.
+
+    Mappings:
+      - Summary: "Summary", "[Summary]", "Profile", "Professional Summary"
+      - Skills:  "Skills", "[Skills]", "Technical Skills", "Core Skills", "Key Skills"
+      - Experience: "Experience" + broad variants incl. "Career Summary"
+      - Education / Certifications: exact names or bracketed variants
     """
     if not text:
         return ""
+
     marked = text
-    for sec, variants in SECTION_SYNONYMS.items():
+
+    synonyms = {
+        "Summary": [
+            r"\[?\s*Summary\s*\]?",
+            r"Profile",
+            r"Professional\s+Summary",
+        ],
+        "Skills": [
+            r"\[?\s*Skills\s*\]?",
+            r"Technical\s+Skills",
+            r"Core\s+Skills",
+            r"Key\s+Skills",
+        ],
+        "Experience": [
+            r"\[?\s*Experience\s*\]?",
+            r"Professional\s+Experience",
+            r"Work\s+Experience",
+            r"Employment\s+History",
+            r"Career\s+History",
+            r"Relevant\s+Experience",
+            r"Career\s+Summary",  # <-- critical for your CVs
+        ],
+        "Education": [
+            r"\[?\s*Education\s*\]?",
+        ],
+        "Certifications": [
+            r"\[?\s*Certifications\s*\]?",
+            r"Qualifications",
+            r"Certificates",
+        ],
+    }
+
+    # Apply all mappings; each pattern must be on its own line or delimited by newlines.
+    for sec, variants in synonyms.items():
         pat = r'(^|\n)\s*(?:' + '|'.join(variants) + r')\s*(\n|$)'
-        marked = re.sub(pat, f"\n=== {sec} ===\n", marked, flags=re.IGNORECASE)
+        marked = re.sub(pat, lambda m, s=sec: f"\n=== {s} ===\n", marked, flags=re.IGNORECASE)
+
     return marked
 
-def _strip_bullet(s): return BULLET_RE.sub("", s).strip()
 
-def _is_header(s):
-    s_stripped = s.strip()
-    if HEADER_DASH_RE.match(s_stripped):
-        return True
-    if s_stripped.lower().startswith("earlier "):
-        return True
-    if PAREN_DURATION_RE.search(s_stripped):
-        return True
-    t = re.sub(r'[\[\]]', '', s_stripped).strip().lower()
-    if t in {"technical skills", "skills", "education", "certifications", "summary"}:
-        return False
-    return False
+# --- Grouping helpers for structuring Experience ---------------------------------
+
+# Date token patterns: "Sep 2012", "September 2012", "09/2012", "2012"
+MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*"
+DATE_WORD = rf"(?:{MONTH}\s+\d{{4}}|\d{{1,2}}/\d{{4}}|\d{{4}})"
+PRESENT_WORD = r"(?:Present|Current|Now)"
+RANGE_SEP = r"[–—-]"  # en dash / em dash / hyphen
+
+# Standalone duration line: "Sep 2012 – May 2014", "Apr 2022 – Present", "2004 – 2012"
+DURATION_LINE_RE = re.compile(
+    rf"^\s*{DATE_WORD}\s*{RANGE_SEP}\s*(?:{PRESENT_WORD}|{DATE_WORD})(?:.*)?$",
+    re.IGNORECASE,
+)
+
+# Header with duration in parentheses: "Earlier Career (1991 – 2004)"
+PAREN_DURATION_RE = re.compile(
+    rf"\((\s*{DATE_WORD}\s*{RANGE_SEP}\s*(?:{PRESENT_WORD}|{DATE_WORD})\s*)\)",
+    re.IGNORECASE,
+)
+
+# Company/role style header with dash: "BDR Thermea (BAXI) – Business Intelligence Manager"
+HEADER_DASH_RE = re.compile(r".+\s[–—-]\s.+")
+
+# Bullet markers we will strip from verbatim responsibility lines if present
+BULLET_RE = re.compile(r'^\s*(?:[•\-\*\u2013\u2014\u00B7\u2219\u25AA\u25E6]|\d+[\.\)]|[A-Za-z]\))\s+')
+
 
 def _structure_experience_from_lines(exp_lines):
     """
-    Group header + (optional) duration + following lines as responsibilities. Keep wording verbatim.
-    If header contains a parenthesised date window, remove it from Position and store in Duration.
+    Convert verbatim lines into a structured list of roles without changing wording.
+
+    Rules:
+      - A header line is either:
+          * line with a spaced dash between phrases (Company – Role), or
+          * line like "Earlier Career (1991 – 2004)", or
+          * "Earlier ..." standalone headings we want to keep.
+      - A duration line matches DURATION_LINE_RE (e.g., "Apr 2022 – Present ...").
+      - We group: [HEADER] [optional DURATION-LINE or duration-in-parentheses on header]
+        then treat all following non-header lines as responsibilities until the next header.
+      - Each responsibility line is kept verbatim (bullet marker stripped if present).
     """
-    items, i, n = [], 0, len(exp_lines)
+    items = []
+    i = 0
+    n = len(exp_lines)
+
+    def strip_bullet(s):
+        return BULLET_RE.sub("", s).strip()
+
+    def is_header(s):
+        s_stripped = s.strip()
+        if HEADER_DASH_RE.match(s_stripped):
+            return True
+        if s_stripped.lower().startswith("earlier "):
+            return True
+        if PAREN_DURATION_RE.search(s_stripped):
+            return True
+        # Avoid misclassifying "Technical Skills" as a role header here
+        t = re.sub(r'[\[\]]', '', s_stripped).strip().lower()
+        if t in {"technical skills", "skills", "education", "certifications", "summary"}:
+            return False
+        return False
+
     while i < n:
         line = exp_lines[i].rstrip()
         if not line:
             i += 1
             continue
 
-        if _is_header(line):
+        if is_header(line):
+            # Start a new role
             position_text = line.strip()
 
-            # duration inside header?
+            # 1) Duration inside header?
             duration_text = ""
             m = PAREN_DURATION_RE.search(position_text)
             if m:
                 duration_text = m.group(1).strip()
-                position_text = PAREN_DURATION_RE.sub("", position_text).strip()
 
-            # or as next line?
+            # 2) Or duration on the next line?
             used_next_for_duration = False
             if not duration_text and (i + 1) < n and DURATION_LINE_RE.match(exp_lines[i + 1].strip()):
                 duration_text = exp_lines[i + 1].strip()
                 used_next_for_duration = True
 
+            # Create the role item
             item = {
-                "Position": position_text,
+                "Position": position_text,     # keep verbatim; do not split Company/Role
                 "Company": "",
                 "Duration": duration_text,
                 "Responsibilities": [],
             }
+
+            # Advance past header (+ optional duration line)
             i += 2 if used_next_for_duration else 1
 
+            # Collect responsibilities until next header/section-like line
             while i < n:
                 peek = exp_lines[i].strip()
                 if not peek:
                     i += 1
                     continue
-                if _is_header(peek) or DURATION_LINE_RE.match(peek):
+                # Stop if the next line starts a new header/role
+                if is_header(peek) or DURATION_LINE_RE.match(peek):
                     break
+                # Stop if we accidentally ran into a section heading
                 sec_name = re.sub(r'[\[\]]', '', peek).strip().lower()
                 if sec_name in {"technical skills", "skills", "education", "certifications", "summary"}:
                     break
-                item["Responsibilities"].append(_strip_bullet(peek))
+                item["Responsibilities"].append(strip_bullet(peek))
                 i += 1
 
             items.append(item)
             continue
 
-        # stray duration without header: skip
+        # If the current line looks like a duration but we don't have a header, skip (cannot anchor).
         if DURATION_LINE_RE.match(line):
             i += 1
             continue
 
+        # Otherwise, not a header — skip forward
         i += 1
 
     return items
 
-def _fallback_clearance(raw_text: str) -> str | None:
-    m = CLEARANCE_RE.search(raw_text or "")
-    if not m:
-        return None
-    code = m.group(1).upper()
-    return {"DV": "DV Cleared", "SC": "SC Cleared", "CTC": "CTC Cleared", "BPSS": "BPSS"}.get(code, f"{code} Cleared")
 
 def main(file_path, output_directory='Documents/Processed'):
     """
@@ -135,10 +207,10 @@ def main(file_path, output_directory='Documents/Processed'):
         text = extract_text(file_path)
         logging.info("Text extraction completed.")
 
-        # Insert markers with synonyms
+        # 1) Insert markers with synonyms (Career Summary -> Experience; Technical Skills -> Skills)
         marked_text = _mark_sections(text)
 
-        # Deterministic, verbatim capture of Experience
+        # 2) Deterministic, verbatim capture of Experience
         exp_lines = extract_experience_lines(marked_text) or extract_experience_lines(text)
         logging.debug(f"Verbatim Experience lines count: {len(exp_lines)}")
         if exp_lines:
@@ -147,33 +219,28 @@ def main(file_path, output_directory='Documents/Processed'):
         exp_struct = _structure_experience_from_lines(exp_lines)
         logging.debug(f"Verbatim Experience structured items: {len(exp_struct)}")
 
-        # LLM for non-experience fields only
+        # 3) LLM for non-experience fields only
         raw_data = extract_cv_data(marked_text)
-        logging.debug(f"Raw data extracted (pre-override) keys: {list(raw_data.keys())}")
+        logging.debug(f"Raw data extracted (pre-override): dict_keys({list(raw_data.keys())})")
 
-        # HARD OVERRIDE: ensure verbatim Experience wins (even if empty)
+        # 4) HARD OVERRIDE: ensure verbatim Experience wins (even if empty)
         raw_data["Experience"] = exp_struct
-
-        # Fallback for SecurityClearance
-        if not raw_data.get("SecurityClearance") or raw_data["SecurityClearance"].strip().lower() == "not specified":
-            sc = _fallback_clearance(text)
-            if sc:
-                raw_data["SecurityClearance"] = sc
 
         logging.info("Data extraction completed.")
 
-        # Format (formatter will sort roles by end date; bullets remain verbatim)
+        # 5) Format (your formatter will sort roles by end date; bullets remain verbatim)
         data = format_data(raw_data)
-        logging.debug(f"Formatted data prepared.")
+        logging.debug(f"Formatted data: {data}")
+        logging.info("Data formatting completed.")
 
-        # Construct the output path
+        # 6) Output
         applicant_name = data.get('ApplicantName', 'output').replace(" ", "_")
         output_filename = f"{applicant_name}_CV.docx"
         output_path = os.path.join(output_directory, output_filename)
         os.makedirs(output_directory, exist_ok=True)
 
-        # Generate the standardized Word document
         create_document(data, output_path=output_path)
+        logging.info(f"Document saved to {output_path}")
         logging.info("Document generation completed.")
         return output_path
 
