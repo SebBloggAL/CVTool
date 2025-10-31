@@ -1,5 +1,4 @@
 # document_generator.py
-# Test
 import os
 import logging
 from docx import Document
@@ -14,6 +13,30 @@ import docx.oxml
 import re
 from datetime import datetime
 
+def insert_additional_section(paragraph, additional_lines):
+    """
+    Inserts an 'Additional Information' section as bullet points below the given paragraph.
+    """
+    prev_para = paragraph
+    if not additional_lines:
+        p_el = paragraph._element
+        p_el.getparent().remove(p_el)
+        return
+
+    for line in additional_lines:
+        if not isinstance(line, str):
+            continue
+        text = line.strip()
+        if not text:
+            continue
+        bullet_para = insert_paragraph_after(prev_para, text, style='List Bullet')
+        apply_run_font_style(bullet_para.runs[0], bullet_para)
+        prev_para = bullet_para
+
+    insert_paragraph_after(prev_para, "")
+    # Remove original placeholder
+    p_el = paragraph._element
+    p_el.getparent().remove(p_el)
 
 def set_document_font(doc):
     """
@@ -150,13 +173,15 @@ def replace_headers(doc):
     Replaces header placeholders (e.g., [Summary], [Certifications]) with actual header text and applies 'Style 1'.
     """
     header_placeholders = {
-        "[Security Clearance]": "Security Clearance:",
-        "[Summary]": "Summary",
-        "[Skills]": "Skills",
-        "[Experience]": "Experience",
-        "[Education]": "Education",
-        "[Certifications]": "Certifications"
+    "[Security Clearance]": "Security Clearance:",
+    "[Summary]": "Summary",
+    "[Skills]": "Skills",
+    "[Experience]": "Experience",
+    "[Education]": "Education",
+    "[Certifications]": "Certifications",
+    "[Additional]": "Additional Information"  # NEW
     }
+
 
     for paragraph in doc.paragraphs:
         text = paragraph.text.strip()
@@ -204,6 +229,11 @@ def replace_placeholders_in_cell(cell, placeholders, data):
             p_element = paragraph._element
             p_element.getparent().remove(p_element)
 
+        elif '{Additional}' in paragraph.text:
+            insert_additional_section(paragraph, data.get('Additional', []))
+            p_element = paragraph._element
+            p_element.getparent().remove(p_element)
+            
         else:
             replace_placeholders_in_paragraph(paragraph, placeholders)
             convert_lines_to_bullets(paragraph)
@@ -525,10 +555,16 @@ def create_document(data, output_path):
     # 4) Ensure correct font and language for all runs
     set_font_for_all_text(doc, placeholders)
 
-    # 5) Save the document
+        # 5) Save the document
     try:
         doc.save(output_path)
+        # After save, quick scan for unreplaced placeholders to catch template issues
+        try:
+            _assert_no_placeholders(doc)
+        except Exception as inner_e:
+            logging.warning(f"Placeholder check reported an issue: {inner_e}")
         logging.info(f"Document saved to {output_path}")
     except Exception as e:
         logging.error(f"Failed to save document: {e}", exc_info=True)
         raise
+
