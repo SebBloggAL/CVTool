@@ -24,7 +24,11 @@ def extract_text(file_path):
 
     elif ext == '.docx':
         logging.info("Extracting text from DOCX file.")
-        raw = extract_text_from_docx(file_path)
+        try:
+            raw = extract_text_from_docx_precise(file_path)  # table-aware
+        except Exception as e:
+            logging.warning(f"Precise DOCX extractor failed: {e}; falling back to docx2txt")
+            raw = extract_text_from_docx(file_path)
         return normalize_text(raw)
 
     else:
@@ -49,7 +53,7 @@ def extract_text_from_pdf(file_path):
 
 def extract_text_from_docx(file_path):
     """
-    Extracts text from a DOCX file using docx2txt.
+    Fallback: Extracts text from a DOCX file using docx2txt.
     """
     try:
         text = docx2txt.process(file_path)
@@ -57,6 +61,32 @@ def extract_text_from_docx(file_path):
     except Exception as e:
         logging.error(f"Error extracting text from DOCX: {e}")
         raise
+
+
+def extract_text_from_docx_precise(file_path):
+    """
+    Precise DOCX extraction that preserves paragraph order and also reads tables.
+    """
+    import docx
+    d = docx.Document(file_path)
+    lines = []
+
+    # Paragraphs
+    for p in d.paragraphs:
+        t = (p.text or "").strip()
+        if t:
+            lines.append(t)
+
+    # Tables (row-major order)
+    for tbl in d.tables:
+        for row in tbl.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    t = (p.text or "").strip()
+                    if t:
+                        lines.append(t)
+
+    return "\n".join(lines)
 
 
 def normalize_text(text: str) -> str:
@@ -67,6 +97,8 @@ def normalize_text(text: str) -> str:
       3) Collapse 3+ blank lines into two
       4) Normalise Windows newlines
     """
+    if not isinstance(text, str):
+        return ""
     # 0) Normalise \r\n
     text = text.replace('\r\n', '\n')
 
@@ -74,7 +106,6 @@ def normalize_text(text: str) -> str:
     text = re.sub(r'-\n', '', text)
 
     # 2) DO NOT merge single line-breaks; keep them
-    # (Your previous regex turned lines into one paragraph.)
 
     # 3) Collapse 3+ consecutive blanks into two
     text = re.sub(r'\n{3,}', '\n\n', text)
