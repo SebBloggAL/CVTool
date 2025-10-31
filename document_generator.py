@@ -13,6 +13,23 @@ import docx.oxml
 import re
 from datetime import datetime
 
+def _assert_no_placeholders(doc):
+    import re
+    leftover = []
+    ph = re.compile(r'\{[A-Za-z]+\}')
+    for p in doc.paragraphs:
+        if ph.search(p.text or ""):
+            leftover.append(p.text)
+    for t in doc.tables:
+        for row in t.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    if ph.search(p.text or ""):
+                        leftover.append(p.text)
+    if leftover:
+        logging.warning(f"Placeholders not replaced: {leftover}")
+
+
 def insert_additional_section(paragraph, additional_lines):
     """
     Inserts an 'Additional Information' section as bullet points below the given paragraph.
