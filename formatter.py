@@ -5,24 +5,19 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any
 
-# Reuse date parsing from document_generator for consistency
+# Reuse the date parsing already defined in document_generator to avoid duplication.
+# (document_generator does NOT import formatter, so this won't create a circular import.)
 from document_generator import parse_end_date
 
-# Parentheses-aware comma splitting for skills
-PAREN_AWARE_COMMA = re.compile(r',(?![^()]*\))')
-
-# Date window detection anywhere in a string
-MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*"
-DATE_TOKEN = rf"(?:{MONTH}\s+\d{{4}}|\d{{1,2}}/\d{{4}}|\d{{4}})"
-PRESENT = r"(?:Present|Current|Now)"
-RANGE_SEP = r"[–—-]"
-DUR_WINDOW_RE = re.compile(rf"({DATE_TOKEN})\s*{RANGE_SEP}\s*({PRESENT}|{DATE_TOKEN})", re.IGNORECASE)
 
 def format_data(raw_data):
     """
     Formats the raw data extracted from the CV to match the template requirements.
     """
-    security_clearance = raw_data.get("SecurityClearance", "Not specified") or "Not specified"
+    # Handle Security Clearances
+    security_clearance = raw_data.get("SecurityClearance", "Not specified")
+    if not security_clearance:
+        security_clearance = "Not specified"
 
     formatted_data = {
         "ApplicantName": raw_data.get("ApplicantName", "Name not provided"),
@@ -32,63 +27,50 @@ def format_data(raw_data):
         "Skills": format_skills(raw_data.get("Skills", [])),
         "Experience": format_experience(raw_data.get("Experience", [])),  # sorted newest->oldest
         "Education": format_education(raw_data.get("Education", [])),
-        "Certifications": format_certifications(raw_data.get("Certifications", [])),
-        # Optional additional content if you decide to include it later:
-        "Additional": raw_data.get("Additional", []),
+        "Certifications": format_certifications(raw_data.get("Certifications", []))
     }
 
-    logging.debug(f"Formatted data: keys={list(formatted_data.keys())}")
+    logging.debug(f"Formatted data: {formatted_data}")
     return formatted_data
 
 
 def format_skills(skills_data):
     """
-    Formats the skills data into a list of individual skills without splitting inside parentheses.
+    Formats the skills data into a list of individual skills.
     """
     if isinstance(skills_data, list):
-        return [s.strip() for s in skills_data if isinstance(s, str) and s.strip()]
-
-    if isinstance(skills_data, str):
-        out = []
-        for raw_line in skills_data.splitlines():
-            line = (raw_line or "").strip()
-            if not line:
-                continue
-            # Keep category lines as-is (e.g., "Cloud Platforms: AWS, Azure")
-            if ':' in line:
-                out.append(line)
-                continue
-            # Otherwise split by commas that are NOT inside parentheses
-            for token in PAREN_AWARE_COMMA.split(line):
-                tok = token.strip()
-                if tok:
-                    out.append(tok)
-        return out
-
-    logging.warning("Unexpected format for skills data.")
-    return []
+        return [skill.strip() for skill in skills_data if isinstance(skill, str) and skill.strip()]
+    elif isinstance(skills_data, str):
+        # Split on commas or newlines
+        return [skill.strip() for skill in re.split(r'[\n,]', skills_data) if skill.strip()]
+    else:
+        logging.warning("Unexpected format for skills data.")
+        return []
 
 
 def format_experience(experience_data):
     """
     Keep responsibilities verbatim; sort roles by parsed end date (newest first).
+    Does NOT paraphrase/abbreviate any text.
     """
-    items: List[Dict[str, Any]] = []
+    formatted_experiences: List[Dict[str, Any]] = []
 
     if isinstance(experience_data, list):
-        for it in experience_data:
-            if not isinstance(it, dict):
-                logging.warning(f"Unexpected experience item type: {type(it)}")
+        for item in experience_data:
+            if not isinstance(item, dict):
+                logging.warning(f"Unexpected experience item type: {type(item)}")
                 continue
-            items.append({
-                "Position": it.get("Position", ""),
-                "Company": it.get("Company", ""),
-                "Duration": it.get("Duration", ""),
-                "Responsibilities": it.get("Responsibilities", []),  # DO NOT rewrite
-            })
+            formatted_item = {
+                "Position": item.get("Position", ""),
+                "Company": item.get("Company", ""),
+                "Duration": item.get("Duration", ""),
+                # IMPORTANT: keep bullets exactly as provided (no summarisation)
+                "Responsibilities": item.get("Responsibilities", []),
+            }
+            formatted_experiences.append(formatted_item)
 
     elif isinstance(experience_data, dict):
-        items.append({
+        formatted_experiences.append({
             "Position": experience_data.get("Position", ""),
             "Company": experience_data.get("Company", ""),
             "Duration": experience_data.get("Duration", ""),
@@ -97,28 +79,29 @@ def format_experience(experience_data):
     else:
         logging.warning("Unexpected format for experience data.")
 
+    # Sort newest -> oldest, but preserve original order for ties/unknown dates
     try:
-        items = sort_experiences(items)
+        formatted_experiences = sort_experiences(formatted_experiences)
     except Exception as e:
         logging.warning(f"Could not sort experiences: {e}")
 
-    return items
+    return formatted_experiences
 
 
 def format_education(education_data):
     """
     Formats the education data as a single string with entries separated by two line breaks.
     """
-    formatted = ""
+    formatted_education = ""
     if isinstance(education_data, list):
         for item in education_data:
             if not isinstance(item, dict):
                 continue
-            degree = (item.get("Degree", "") or "").strip()
-            institution = (item.get("Institution", "") or "").strip()
-            duration = (item.get("Duration", "") or "").strip()
+            degree = item.get("Degree", "")
+            institution = item.get("Institution", "")
+            duration = item.get("Duration", "")
 
-            entry = degree
+            entry = f"{degree}".strip()
             if institution and institution.lower() != "not specified":
                 entry += f" at {institution}"
             if duration and duration.lower() != "not specified":
@@ -126,22 +109,23 @@ def format_education(education_data):
 
             entry = entry.strip()
             if entry:
-                formatted += f"{entry}\n\n"
+                formatted_education += f"{entry}\n\n"
 
     elif isinstance(education_data, dict):
-        for k, v in education_data.items():
-            formatted += f"{k}\n"
-            if isinstance(v, list):
-                for detail in v:
-                    formatted += f"- {detail}\n"
-            elif isinstance(v, str):
-                formatted += f"- {v}\n"
-            formatted += "\n"
+        # Fallback: flatten a dict (unlikely if prompt is followed)
+        for key, value in education_data.items():
+            formatted_education += f"{key}\n"
+            if isinstance(value, list):
+                for detail in value:
+                    formatted_education += f"- {detail}\n"
+            elif isinstance(value, str):
+                formatted_education += f"- {value}\n"
+            formatted_education += "\n"
 
     elif isinstance(education_data, str):
-        formatted += education_data
+        formatted_education += education_data
 
-    return formatted.strip()
+    return formatted_education.strip()
 
 
 def format_certifications(cert_data):
@@ -149,60 +133,33 @@ def format_certifications(cert_data):
     Formats the certifications data as a list of strings.
     """
     if isinstance(cert_data, list):
-        return [c.strip() for c in cert_data if isinstance(c, str) and c.strip()]
-    if isinstance(cert_data, str):
+        return [item.strip() for item in cert_data if isinstance(item, str) and item.strip()]
+    elif isinstance(cert_data, str):
+        # Split on commas or newlines
         return [s.strip() for s in re.split(r'[\n,]', cert_data) if s.strip()]
-    logging.warning("Unexpected format for certifications data.")
-    return []
+    else:
+        logging.warning("Unexpected format for certifications data.")
+        return []
 
-
-# ---- Sorting helpers ----
-
-def _extract_date_window(text: str) -> str | None:
-    if not isinstance(text, str) or not text.strip():
-        return None
-    m = DUR_WINDOW_RE.search(text)
-    if not m:
-        return None
-    start, end = m.group(1), m.group(2)
-    if re.match(PRESENT, end, re.IGNORECASE):
-        end = "Present"
-    return f"{start} – {end}"
-
-def _best_effort_end_dt(item: Dict[str, Any]) -> datetime:
-    dur = (item.get("Duration") or "").strip()
-    win = _extract_date_window(dur)
-    if win:
-        try:
-            return parse_end_date(win)
-        except Exception:
-            pass
-
-    pos = (item.get("Position") or "").strip()
-    win = _extract_date_window(pos)
-    if win:
-        try:
-            return parse_end_date(win)
-        except Exception:
-            pass
-
-    return datetime.min
 
 def sort_experiences(experience_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    indexed: List[tuple[int, datetime, Dict[str, Any]]] = []
+    """
+    Sorts a list of experience objects by their parsed end date, newest first,
+    using document_generator.parse_end_date. Preserves original order for ties or
+    invalid/unknown dates.
+    """
+    # Capture original index to keep sort stable on ties
+    indexed = []
     for idx, item in enumerate(experience_data):
-        end_dt = _best_effort_end_dt(item)
+        duration = item.get("Duration", "")
+        try:
+            end_dt = parse_end_date(duration) if duration is not None else datetime.min
+        except Exception:
+            end_dt = datetime.min
         indexed.append((idx, end_dt, item))
 
-    # Sort by end date DESC, tie-break by original order (stable)
-    indexed.sort(key=lambda t: (t[1], -t[0]), reverse=True)
+    # Sort by end date DESC, then by original index ASC
+    indexed.sort(key=lambda tup: (tup[1], -tup[0]), reverse=True)
 
-    # Debug order
-    debug_view = [
-        {"i": i, "end_dt": ed.isoformat() if isinstance(ed, datetime) else str(ed),
-         "pos": it.get("Position", "")[:80], "dur": it.get("Duration", "")[:80]}
-        for (i, ed, it) in indexed
-    ]
-    logging.debug(f"sort_experiences order: {debug_view}")
-
-    return [t[2] for t in indexed]
+    # Rebuild list in sorted order
+    return [it[2] for it in indexed]
